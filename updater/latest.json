@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0-beta.6",
+  "notes": "**Test release.** Download the app for your computer below (`_macos-universal.dmg` for macOS, `-setup.exe` for Windows, `.AppImage` or `.deb` for Linux), or the one-file command line (`hushtv-*`). Not yet tried on a real TV.\n\nNew in 0.2.0-beta.6:\n- **Automatic updates**: the app tells you when a new version is out and updates itself after you say yes (macOS, Windows, AppImage). Updates are checked against the developer's signature.\n- **Pairing screen in the app**: type the 6-digit code from Wireless debugging.\n- The Home screen step is hidden until 1.1 (installing the ad-free home comes then).\n\nAlso since 0.2.0-beta.4:\n- **Pair with the 6-digit code** (Android 11+ Wireless debugging) from the command line: `hushtv pair <address:port> <code>`. No Google adb needed.\n- **Homebrew and Scoop**: `brew tap kajisho5/hushtv https://github.com/kajisho5/hushtv` then `brew install kajisho5/hushtv/hushtv` (or `--cask kajisho5/hushtv/hushtv-app`); `scoop bucket add hushtv https://github.com/kajisho5/hushtv` then `scoop install hushtv/hushtv`.\n- The macOS command line is now one universal file, signed and notarized.\n- A form for telling us how hushtv went on your TV: https://github.com/kajisho5/hushtv/issues/new?template=tv-report.yml\n\nThe Windows installer is not signed yet: SmartScreen → More info → Run anyway.\n---ja---\nテスト用リリースです。実機のテレビではまだ試していません。\n\n0.2.0-beta.6 の変更：\n- **自動アップデート**：新しいバージョンが出るとアプリが知らせ、「更新して再起動」を押すと入れ替わります（Mac・Windows・AppImage）。開発者の鍵で署名を確かめてから入れます。\n- **アプリにペアリングの画面**：ワイヤレスデバッグの 6 桁を入れてつなげます。\n- ホーム画面の手順は 1.1 まで隠しました（広告のないホームを入れる機能は 1.1 で）。\n\n0.2.0-beta.4 からのそのほかの変更：\n- **6 桁のコードでペアリング**（Android 11 以降のワイヤレスデバッグ）をコマンドでできるようにしました：`hushtv pair <住所:ポート> <コード>`。Google の adb は要りません。\n- **Homebrew と Scoop** で入れられるようにしました（入れ方は上の英語のとおり）。\n- Mac のコマンド版を 1 つのファイル（Apple シリコンと Intel の両方）にまとめ、署名と公証を付けました。\n- テレビでどうだったかを教えてもらうフォームを作りました。\n\nWindows のインストーラーはまだ署名していません。SmartScreen が出たら「詳細情報」→「実行」を押してください。",
+  "pub_date": "2026-11-08T10:49:47Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQVZUOTBjZjAyUy9uWFhCbWtSR2lVRkpwWUs2TkJ4ZWlSTjgxT1ptWTBaQWJuMmxjc0JKSE9vNWRSMUM5MGhIM25lb3g5ZHZpeHpXeVZycEdEbmhLb3dhZDkrSVEzSkE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTM0NzczCWZpbGU6aHVzaHR2XzAuMi4wLWJldGEuNl9tYWNvcy11bml2ZXJzYWwuYXBwLnRhci5negpVRDBIRlBpWVFkQWgxaS94NjZ2ajdvVlRyRUN4c0ZET1NOZHFGaU55UDdMOWlUWnFqbG9RZUg2bXZPekJqZzc1MGc2cVJGUFpPclg4QjlEa0VGU3hDZz09Cg==",
+      "url": "https://github.com/kajisho5/hushtv/releases/download/v0.2.0-beta.6/hushtv_0.2.0-beta.6_macos-universal.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQVZUOTBjZjAyUy9uWFhCbWtSR2lVRkpwWUs2TkJ4ZWlSTjgxT1ptWTBaQWJuMmxjc0JKSE9vNWRSMUM5MGhIM25lb3g5ZHZpeHpXeVZycEdEbmhLb3dhZDkrSVEzSkE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTM0NzczCWZpbGU6aHVzaHR2XzAuMi4wLWJldGEuNl9tYWNvcy11bml2ZXJzYWwuYXBwLnRhci5negpVRDBIRlBpWVFkQWgxaS94NjZ2ajdvVlRyRUN4c0ZET1NOZHFGaU55UDdMOWlUWnFqbG9RZUg2bXZPekJqZzc1MGc2cVJGUFpPclg4QjlEa0VGU3hDZz09Cg==",
+      "url": "https://github.com/kajisho5/hushtv/releases/download/v0.2.0-beta.6/hushtv_0.2.0-beta.6_macos-universal.app.tar.gz"
+    },
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQVZUOTBjZjAyUzVTTU9pTU5BMnhDdXpDLytXWHJ2SkFXeTRKMUFFcjliZmxIc0hwajk3dHV5dHZkQ3FURnV2SFNQSmVSUVFFT1ZucnhLcHFhMXJyQzlldE5sS3IvTkFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTM0OTY2CWZpbGU6aHVzaHR2XzAuMi4wLWJldGEuNl9hbWQ2NC5BcHBJbWFnZQl2ZXJzaW9uOjAuMi4wLWJldGEuNgoydkNsRW50QmJkYWJjcERuR3FVeUdXN3BLcTU0VVg1ZHE3U2o2OXJlZDNyeUpuUHM4SStyaEtoM3VTTzAxc0YvbC9wV002am1pWmhtSFN5U3lPUDZBZz09Cg==",
+      "url": "https://github.com/kajisho5/hushtv/releases/download/v0.2.0-beta.6/hushtv_0.2.0-beta.6_amd64.AppImage"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQVZUOTBjZjAyUzNPeWdjdHlzYkk4OTRsOGZocno1Q0lId2pMQ2N5Mk1YTmxkdUZPQ1EwREptM3J4Q2xyTWNqcjRENjFITHB5VTBlQjJmNE1FejNmTTJFUUVLQkZFZmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTM0MzQ2CWZpbGU6aHVzaHR2XzAuMi4wLWJldGEuNl94NjQtc2V0dXAuZXhlCXZlcnNpb246MC4yLjAtYmV0YS42CnRvTk5TdzkwK1B4VU84WGJ4Nmt2NGpOekJ6a25nQi9Ha3Y1dzRmMDhCNm5pZ25lTHZTS09KSDVTZmVxVER1YWV1c056bnJEYndMZStCSkdnWkhYS0J3PT0K",
+      "url": "https://github.com/kajisho5/hushtv/releases/download/v0.2.0-beta.6/hushtv_0.2.0-beta.6_x64-setup.exe"
+    }
+  }
+}

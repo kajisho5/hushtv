@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0-beta.6",
+    "description": "Switch off ads, trackers and promo apps on Android TV and Google TV - undoably",
+    "homepage": "https://github.com/kajisho5/hushtv",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/kajisho5/hushtv/releases/download/v0.2.0-beta.6/hushtv-windows-x86_64.zip",
+            "hash": "e0cd97468256f484b44102779c7d2bdcbdd4c52933bde751c4e970c152415019",
+            "extract_dir": "hushtv-windows-x86_64"
+        }
+    },
+    "bin": "hushtv.exe",
+    "checkver": {
+        "github": "https://github.com/kajisho5/hushtv"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/kajisho5/hushtv/releases/download/v$version/hushtv-windows-x86_64.zip"
+            }
+        }
+    }
+}
