@@ -14,6 +14,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 pub mod discover;
+pub mod flow;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

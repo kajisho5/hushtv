@@ -566,19 +566,22 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hushtv-adb"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "adb_client",
  "dirs",
+ "hushtv-card",
  "hushtv-core",
  "mdns-sd",
  "rsa",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
 [[package]]
 name = "hushtv-card"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "ab_glyph",
  "image",
@@ -586,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "hushtv-cli"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -599,7 +602,7 @@ dependencies = [
 
 [[package]]
 name = "hushtv-core"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "include_dir",
  "regex",

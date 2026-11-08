@@ -1,13 +1,9 @@
-**Test release (command line).** Not yet tried on a real TV: read `hushtv plan` before `hushtv apply`, and keep the restore record.
+**Test release (command line).** Not yet tried on a real TV: read `hushtv plan` before `hushtv apply`, and use `rescue --dry-run` first.
 
-New in beta.2:
-- **Light / Full** (`--preset`). Light, the default, switches off only ads and tracking.
-- **Safe mode** (on by default). 4 apps at a time, then a check that the TV answers and Home and Settings still open; a bad batch is undone and the run stops. `--fast` turns it off.
-- **Before/after share image** (1600×900 PNG) after `apply`. `--no-share` skips it.
+New in beta.3:
+- **`hushtv rescue`** repairs TVs that misbehave after a debloat with hushtv, cleanyourtv, CleanMyTV or plain adb. It only turns things back on. See docs/RESCUE.md.
 
 テスト用リリース（コマンド操作のみ）。実機のテレビではまだ試していません。
 
-beta.2 で追加：
-- 「軽め／全部」の選択（既定は軽め＝広告と追跡だけ）
-- 安全モード（既定でオン）：4 個ずつ止めて確かめ、だめならその組を戻して止まる
-- 止める前後のホーム画面からビフォー・アフター画像を作る
+beta.3 で追加：
+- `hushtv rescue`：ほかのツールで止めすぎて調子が悪くなったテレビを診断して直す（戻すだけ）。cleanyourtv・CleanMyTV の戻す記録も使える

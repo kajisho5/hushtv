@@ -10,12 +10,13 @@
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
+use hushtv_adb::flow::{self, applied_path, data_dir, records_dir};
 use hushtv_adb::{Device, default_key_path};
-use hushtv_core::category::{self, Category, Preset};
+use hushtv_core::category::{self, Preset};
 use hushtv_core::list::{self, DebloatList};
 use hushtv_core::lists::{self, ListInfo};
 use hushtv_core::plan::{self, Applied, Plan};
-use hushtv_core::record::{self, RecoveryRecord};
+use hushtv_core::record::{self};
 use hushtv_core::safety::{self, Lang, Overrides};
 use std::io::Write;
 use std::path::PathBuf;
@@ -65,6 +66,21 @@ enum Cmd {
         #[command(flatten)]
         ov: OverrideArgs,
     },
+    /// 調子が悪くなったテレビを診断して直す（cleanyourtv・CleanMyTV などで止めすぎたとき）
+    Rescue {
+        host: String,
+        /// quick＝起動・ホーム・設定・入力・Wi-Fi にかかわるものだけ戻す（既定）／ all＝機種別リストのアプリを全部戻す
+        #[arg(long, value_enum, default_value_t = LevelArg::Quick)]
+        level: LevelArg,
+        /// 見つかった戻す記録（cleanyourtv・CleanMyTV・hushtv）どおりに戻す
+        #[arg(long, conflicts_with = "level")]
+        record: bool,
+        /// 診断だけして、何も変えない
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long, short)]
+        yes: bool,
+    },
     /// 記録どおりに戻す
     Restore {
         #[command(flatten)]
@@ -101,6 +117,12 @@ struct Target {
     no_share: bool,
     #[command(flatten)]
     ov: OverrideArgs,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+enum LevelArg {
+    Quick,
+    All,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -150,52 +172,6 @@ fn lang() -> Lang {
 }
 fn tr<'a>(ja: &'a str, en: &'a str) -> &'a str {
     if lang() == Lang::Ja { ja } else { en }
-}
-
-fn data_dir() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
-        .join("hushtv")
-}
-
-fn host_tag(host: &str) -> String {
-    record::lan_address(host)
-        .unwrap_or_else(|| host.to_string())
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect()
-}
-
-/// UTC の今の時刻（元の記録と同じ `%Y-%m-%dT%H:%M:%S%z` の形）。
-fn now_stamp() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-    let (days, rem) = (secs.div_euclid(86400), secs.rem_euclid(86400));
-    // 日数から年月日（Howard Hinnant の方法）
-    let z = days + 719468;
-    let era = z.div_euclid(146097);
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}+0000",
-        rem / 3600,
-        rem / 60 % 60,
-        rem % 60
-    )
 }
 
 fn connect(host: &str) -> Result<Device> {
@@ -300,14 +276,6 @@ fn make_plan(
     Ok((Plan::build(&names, &guarded, &state), state))
 }
 
-fn records_dir() -> PathBuf {
-    record::record_dir(&dirs::home_dir().unwrap_or_default())
-}
-
-fn applied_path(host: &str) -> PathBuf {
-    data_dir().join(format!("applied-{}.json", host_tag(host)))
-}
-
 fn main() {
     if let Err(e) = run(Cli::parse()) {
         eprintln!("{} {e:#}", tr("エラー:", "error:"));
@@ -406,7 +374,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Apply { target: t, yes } => {
             let mut dev = connect(&t.host)?;
             let (id, path, list) = resolve_list(&t, &mut dev)?;
-            let (p, state) = make_plan(&mut dev, &list, t.ov.into(), t.preset.into())?;
+            let (p, _) = make_plan(&mut dev, &list, t.ov.into(), t.preset.into())?;
             print_plan(&p);
             if p.to_disable.is_empty() {
                 println!("{}", tr("止めるものはありません。", "Nothing to disable."));
@@ -427,136 +395,64 @@ fn run(cli: Cli) -> Result<()> {
                 );
                 return Ok(());
             }
-            // 1. 変える前に記録（最初の記録は上書きしない）
-            let dir = records_dir();
-            std::fs::create_dir_all(&dir)?;
-            let rec_path = record::find_record(&dir, &path, &t.host).map_err(|found| anyhow::anyhow!("{}\n{found:#?}", tr("この TV とリストの記録が 2 つあります。正しくない方を別の場所へ移してから、もう一度実行してください。テレビは変えていません", "Two recovery records exist for this TV and list; move the wrong one aside and run again. Nothing was changed")))?;
-            let names = plan::names(&list);
-            let mut rec: RecoveryRecord = if rec_path.exists() {
-                record::load(&std::fs::read_to_string(&rec_path)?).map_err(anyhow::Error::msg)?
-            } else {
-                record::new_record(&now_stamp(), &t.host, &path, &names, &state)
+            let opt = flow::ApplyOptions {
+                safe: !t.fast,
+                batch: t.batch,
+                share: !t.no_share,
+                ov: t.ov.into(),
             };
-            if !rec_path.exists() || record::extend_record(&mut rec, &names, &state) {
-                std::fs::write(&rec_path, record::to_json(&rec))?;
-            }
-            println!(
-                "{} {}",
-                tr("戻す記録:", "Restore record:"),
-                rec_path.display()
-            );
-            // 2. 共有画像用に、変える前のホーム画面を撮る
-            let before = (!t.no_share)
-                .then(|| dev.home_screenshot(Duration::from_millis(2500)))
-                .flatten();
-            // 3. 止める（安全モードなら少しずつ確かめながら）→ 読み戻し
-            let mut stopped = None;
-            if t.fast {
-                let total = p.to_disable.len();
-                dev.disable(&p.to_disable, |i, n| eprintln!("[{}/{total}] {n}", i + 1));
-            } else {
-                let run = hushtv_core::health::run(&mut dev, &p.to_disable, t.batch, |i, n| {
-                    eprintln!(
-                        "{} {i}/{n}",
+            let out = flow::apply(
+                &mut dev,
+                &id,
+                &path,
+                &list,
+                &p.to_disable,
+                opt,
+                |pr| match pr {
+                    flow::Progress::Batch { done, total } => eprintln!(
+                        "{} {done}/{total}",
                         tr(
                             "安全モード：確かめながら止めています",
                             "Safe mode: disabling and checking"
                         )
-                    )
-                });
-                if let Some(why) = &run.stopped {
-                    println!(
-                        "{} {why:?}",
-                        tr(
-                            "テレビの様子がおかしくなったので、その組を元に戻して止めました:",
-                            "The TV stopped responding normally, so that batch was undone and the run stopped:"
-                        )
-                    );
-                    println!("  {} {:?}", tr("元に戻した:", "undone:"), run.rolled_back);
-                    println!(
-                        "  {} {}",
-                        tr("送らなかった:", "not sent:"),
-                        run.not_sent.len()
-                    );
-                }
-                stopped = run.stopped;
-            }
-            let enabled_now = dev
-                .packages()
-                .map(|(i, d)| {
-                    i.difference(&d)
-                        .cloned()
-                        .collect::<std::collections::BTreeSet<_>>()
-                })
-                .unwrap_or_default();
-            let done: Vec<String> = p
-                .to_disable
-                .iter()
-                .filter(|n| !enabled_now.contains(*n))
-                .cloned()
-                .collect();
-            let still: Vec<String> = if stopped.is_some() {
-                vec![]
-            } else {
-                p.to_disable
-                    .iter()
-                    .filter(|n| enabled_now.contains(*n))
-                    .cloned()
-                    .collect()
-            };
-            // 4. 点検用の控え
-            let applied = Applied {
-                host: t.host.clone(),
-                list_id: id,
-                at: now_stamp(),
-                disabled: done.clone(),
-                installed: state.installed.iter().cloned().collect(),
-                home: state.home.clone(),
-            };
-            std::fs::create_dir_all(data_dir())?;
-            std::fs::write(
-                applied_path(&t.host),
-                serde_json::to_string_pretty(&applied)?,
-            )?;
-            println!("{} {}", tr("止めました:", "Disabled:"), done.len());
-            // 5. ビフォー・アフター画像
-            if !t.no_share && !done.is_empty() {
-                let after = dev.home_screenshot(Duration::from_millis(3000));
-                let mut counts: std::collections::BTreeMap<Category, usize> = Default::default();
-                for e in list.disable.iter().filter(|e| done.contains(&e.package)) {
-                    *counts.entry(category::classify(e)).or_default() += 1;
-                }
-                let stats = hushtv_card::Stats {
-                    switched_off: done.len(),
-                    by_category: counts
-                        .into_iter()
-                        .map(|(c, n)| (c.label(Lang::En).to_string(), n))
-                        .collect(),
-                };
-                match hushtv_card::render(before.as_deref(), after.as_deref(), &stats) {
-                    Ok(png) => {
-                        let out = data_dir().join("share").join(format!(
-                            "hushtv-{}-{}.png",
-                            host_tag(&t.host),
-                            now_stamp().replace(':', "").replace('+', "_")
-                        ));
-                        std::fs::create_dir_all(out.parent().unwrap())?;
-                        std::fs::write(&out, png)?;
-                        println!("{} {}", tr("共有用の画像:", "Share image:"), out.display());
-                    }
-                    Err(e) => eprintln!(
-                        "{} {e}",
-                        tr(
-                            "共有用の画像を作れませんでした:",
-                            "Could not make the share image:"
-                        )
                     ),
-                }
+                    flow::Progress::Package { done, total, name } => {
+                        eprintln!("[{done}/{total}] {name}")
+                    }
+                    flow::Progress::ShotBefore | flow::Progress::ShotAfter => eprintln!(
+                        "{}",
+                        tr("ホーム画面を撮っています…", "Taking a home screen picture…")
+                    ),
+                    _ => {}
+                },
+            )?;
+            println!(
+                "{} {}",
+                tr("戻す記録:", "Restore record:"),
+                out.record_path.display()
+            );
+            println!("{} {}", tr("止めました:", "Disabled:"), out.disabled.len());
+            if let Some(run) = &out.safe
+                && let Some(why) = &run.stopped
+            {
+                println!(
+                    "{} {why:?}",
+                    tr(
+                        "テレビの様子がおかしくなったので、その組を元に戻して止めました:",
+                        "The TV stopped responding normally, so that batch was undone and the run stopped:"
+                    )
+                );
+                println!("  {} {:?}", tr("元に戻した:", "undone:"), run.rolled_back);
+                println!(
+                    "  {} {}",
+                    tr("送らなかった:", "not sent:"),
+                    run.not_sent.len()
+                );
             }
-            if stopped.is_some() {
-                std::process::exit(1);
+            if let Some(card) = &out.card_path {
+                println!("{} {}", tr("共有用の画像:", "Share image:"), card.display());
             }
-            if !still.is_empty() {
+            if !out.still_on.is_empty() {
                 println!(
                     "{}",
                     tr(
@@ -564,9 +460,11 @@ fn run(cli: Cli) -> Result<()> {
                         "Still enabled; the TV did not take these (do not rerun in a loop):"
                     )
                 );
-                for n in &still {
+                for n in &out.still_on {
                     println!("  - {n}");
                 }
+            }
+            if out.problems > 0 || !out.still_on.is_empty() {
                 std::process::exit(1);
             }
             println!(
@@ -642,6 +540,113 @@ fn run(cli: Cli) -> Result<()> {
                 std::process::exit(1);
             }
         }
+        Cmd::Rescue {
+            host,
+            level,
+            record,
+            dry_run,
+            yes,
+        } => {
+            let mut dev = match Device::connect(&host, &default_key_path()) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("{} {e}", tr("つながりません:", "Cannot connect:"));
+                    println!("{}", tr(OFFLINE_JA, OFFLINE_EN));
+                    std::process::exit(1);
+                }
+            };
+            let facts = flow::rescue_facts(&mut dev)?;
+            let problems = hushtv_core::rescue::diagnose(&facts);
+            if problems.is_empty() {
+                println!(
+                    "{}",
+                    tr("問題は見つかりませんでした。", "No problems found.")
+                );
+            }
+            for p in &problems {
+                println!(
+                    "{} {}",
+                    if p.severity() >= 4 {
+                        "!!"
+                    } else if p.severity() >= 2 {
+                        " !"
+                    } else {
+                        " -"
+                    },
+                    p.title(lang())
+                );
+            }
+            let records = flow::records_for_host(&host);
+            for (path, r) in &records {
+                println!(
+                    "{} {} ({})",
+                    tr("戻す記録:", "Restore record:"),
+                    path.display(),
+                    r.created
+                );
+            }
+            if dry_run || (problems.is_empty() && !record) {
+                return Ok(());
+            }
+            if record {
+                let Some((path, rec)) = records.first() else {
+                    bail!(tr(
+                        "このテレビの戻す記録が見つかりません",
+                        "No restore record for this TV"
+                    ))
+                };
+                if !yes
+                    && !ask(tr(
+                        "この記録どおりに戻します。続けますか？",
+                        "Restore this record?",
+                    ))
+                {
+                    return Ok(());
+                }
+                let n = flow::restore_from(&mut dev, rec, None);
+                println!(
+                    "{} {n} ({})",
+                    tr("送ったコマンド:", "Commands sent:"),
+                    path.display()
+                );
+            } else {
+                let lvl = match level {
+                    LevelArg::Quick => hushtv_core::rescue::Level::Quick,
+                    LevelArg::All => hushtv_core::rescue::Level::All,
+                };
+                let cmds = hushtv_core::rescue::fix_commands(&problems, &facts, lvl);
+                for c in &cmds {
+                    println!("  {c}");
+                }
+                if cmds.is_empty()
+                    || (!yes
+                        && !ask(tr(
+                            "上のコマンドで直します（戻すだけで、止めたり消したりはしません）。続けますか？",
+                            "Run the commands above? (They only turn things back on.)",
+                        )))
+                {
+                    return Ok(());
+                }
+                flow::rescue(&mut dev, lvl)?;
+            }
+            let after = hushtv_core::rescue::diagnose(&flow::rescue_facts(&mut dev)?);
+            let serious: Vec<_> = after.iter().filter(|p| p.severity() >= 2).collect();
+            if serious.is_empty() {
+                println!(
+                    "{}",
+                    tr(
+                        "直りました。テレビを再起動して、ホーム・入力・設定・Wi-Fi を確かめてください。",
+                        "Done. Reboot the TV and check Home, inputs, Settings and Wi-Fi."
+                    )
+                );
+            } else {
+                println!("{}", tr("まだ残っている問題:", "Still not fixed:"));
+                for p in serious {
+                    println!("  {}", p.title(lang()));
+                }
+                std::process::exit(1);
+            }
+        }
         Cmd::Restore {
             target: t,
             yes,
@@ -693,3 +698,12 @@ fn run(cli: Cli) -> Result<()> {
     }
     Ok(())
 }
+
+const OFFLINE_JA: &str = "テレビにつながらないときの直し方（docs/RESCUE.md にも同じ内容）:
+  1. Wi-Fi が消えた: 有線 LAN をつなぐか、リモコンの設定ボタン → ネットワーク で Wi-Fi に入り直す
+  2. 画面が真っ黒・ホームが開かない: リモコンの［設定］［入力切替］ボタンか音声で設定を開き、開発者向けオプションでデバッグをオンにしてから、もう一度 hushtv rescue
+  3. 起動ロゴのまま・再起動を繰り返す: 電源ボタンなどを押しながら電源を入れて出る「リカバリー」から初期化（データが消えます。機種ごとに操作が違うので説明書を確認）";
+const OFFLINE_EN: &str = "If the TV cannot be reached (also in docs/RESCUE.md):
+  1. Wi-Fi is gone: plug in Ethernet, or re-join Wi-Fi from the remote's Settings button -> Network
+  2. Black screen / Home does not open: open Settings with the remote's Settings or Input button or by voice, turn debugging back on in Developer options, then run hushtv rescue again
+  3. Stuck on the boot logo / restarting: factory reset from the recovery menu (hold a button while powering on; it erases the TV, and the steps differ per model)";

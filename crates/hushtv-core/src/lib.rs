@@ -13,4 +13,5 @@ pub mod lists;
 pub mod names;
 pub mod plan;
 pub mod record;
+pub mod rescue;
 pub mod safety;

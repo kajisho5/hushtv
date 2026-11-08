@@ -15,3 +15,6 @@ mdns-sd = "0.21.7"
 rsa.workspace = true
 dirs.workspace = true
 thiserror.workspace = true
+hushtv-card.workspace = true
+serde.workspace = true
+serde_json.workspace = true
