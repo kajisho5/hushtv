@@ -100,6 +100,19 @@ Works on TVs cleaned with any tool. It only turns things back on. See [docs/RESC
 The same engine, one file, for scripts, NAS boxes and weekly checks.
 
 ```sh
+# macOS / Linux (Homebrew)
+brew tap kajisho5/hushtv https://github.com/kajisho5/hushtv
+brew install kajisho5/hushtv/hushtv        # command line
+brew install --cask kajisho5/hushtv/hushtv-app   # the app (macOS)
+
+# Windows (Scoop)
+scoop bucket add hushtv https://github.com/kajisho5/hushtv
+scoop install hushtv/hushtv
+```
+
+Or download `hushtv-*` from [Releases](https://github.com/kajisho5/hushtv/releases). The macOS command line is signed and notarized too.
+
+```sh
 hushtv scan                              # find TVs on your network
 hushtv info 192.168.1.50                 # model, Android version, closest lists
 hushtv plan 192.168.1.50                 # what would change (changes nothing)
@@ -168,5 +181,7 @@ MIT
 2. [Releases](https://github.com/kajisho5/hushtv/releases) から自分のパソコン用のアプリをダウンロード
 3. テレビを選び、テレビに出る「USB デバッグを許可しますか？」で［許可］、中身を確かめて反映
 4. 最後の画面で［デバッグを閉じる］
+
+**コマンドで入れる**：Mac・Linux は Homebrew、Windows は Scoop で入れられます（入れ方は上の「Command line」）。Mac のコマンド版も署名・公証済みです。
 
 **日本のテレビ**：ソニー BRAVIA・シャープ AQUOS・TCL・シャオミなど Android TV / Google TV の機種が対象です（日本向けモデルのリストもあります）。パナソニック ビエラ（Fire TV）は止める部分だけ、ハイセンス（VIDAA）は対応できません。

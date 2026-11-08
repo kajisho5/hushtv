@@ -40,8 +40,6 @@ jobs:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, name: hushtv-linux-x86_64, exe: hushtv }
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, name: hushtv-linux-arm64, exe: hushtv }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, name: hushtv-windows-x86_64, exe: hushtv.exe }
-          - { os: macos-latest, target: aarch64-apple-darwin, name: hushtv-macos-arm64, exe: hushtv }
-          - { os: macos-latest, target: x86_64-apple-darwin, name: hushtv-macos-x86_64, exe: hushtv }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -123,8 +121,27 @@ jobs:
       products: target/universal-apple-darwin/release/bundle/macos/hushtv.app
       app_link: true
     secrets: inherit
+  # Mac のコマンド版も runway で：Apple Silicon と Intel をひとつにまとめて Developer ID 署名 → 公証 → zip
+  mac-cli:
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    uses: kajisho5/runway/.github/workflows/mac-notarize.yml@main
+    with:
+      name: hushtv-cli
+      version: ${{ needs.version.outputs.version }}
+      package: zip
+      build: >-
+        rustup toolchain install stable --profile minimal
+        && rustup default stable
+        && rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        && cargo build --release --locked -p hushtv-cli --target aarch64-apple-darwin
+        && cargo build --release --locked -p hushtv-cli --target x86_64-apple-darwin
+        && mkdir -p dist/cli
+        && lipo -create -output dist/cli/hushtv target/aarch64-apple-darwin/release/hushtv target/x86_64-apple-darwin/release/hushtv
+      products: dist/cli/hushtv
+    secrets: inherit
   publish:
-    needs: [version, build, app, mac]
+    needs: [version, build, app, mac, mac-cli]
     # Mac の署名が失敗しても、ほかの OS のリリースは止めない
     if: always() && needs.version.outputs.new == 'true' && needs.build.result == 'success' && needs.app.result == 'success'
     runs-on: ubuntu-latest
@@ -138,6 +155,7 @@ jobs:
         run: |
           ver="${{ needs.version.outputs.tag }}"; ver="${ver#v}"
           if [ -f "dist/hushtv-$ver.dmg" ]; then mv "dist/hushtv-$ver.dmg" "dist/hushtv_${ver}_macos-universal.dmg"; else echo "::warning::Mac の dmg がありません（署名・公証のジョブを確認）"; fi
+          if [ -f "dist/hushtv-cli-$ver.zip" ]; then mv "dist/hushtv-cli-$ver.zip" "dist/hushtv-macos-universal.zip"; else echo "::warning::Mac のコマンド版がありません（署名・公証のジョブを確認）"; fi
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -148,3 +166,16 @@ jobs:
           gh release create "$tag" dist/* $pre \
             --title "hushtv ${{ needs.version.outputs.tag }}" \
             --notes-file docs/release-notes.md
+      - name: Homebrew と Scoop の定義を更新
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          python3 scripts/packages.py "$VERSION" dist
+          if [ -n "$(git status --porcelain Formula Casks bucket)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Formula Casks bucket
+            git commit -m "Homebrew と Scoop を $VERSION に更新"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
