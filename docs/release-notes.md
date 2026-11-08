@@ -1,4 +1,4 @@
-**The desktop app.** Download the app for your computer below (`.dmg` for macOS, `-setup.exe` or `.msi` for Windows, `.AppImage` or `.deb` for Linux), or the one-file command line (`hushtv-*`). Not yet tried on a real TV: look at the plan before you apply, and keep the restore point.
+**The desktop app.** Download the app for your computer below (`.dmg` for macOS, `-setup.exe` for Windows, `.AppImage` or `.deb` for Linux), or the one-file command line (`hushtv-*`). Not yet tried on a real TV: look at the plan before you apply, and keep the restore point.
 
 New in 0.2.0-beta.1:
 - **The hushtv app** (Tauri + Svelte, about 5 MB): Connect, Clean up (Light / Full, safe mode), Check after updates, Finish (share image, Post to X, close debugging, undo everything) and **Repair a TV**. English and Japanese.
