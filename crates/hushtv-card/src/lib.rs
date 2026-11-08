@@ -151,25 +151,23 @@ pub fn render(
     );
     // 写真 2 枚（16:9）
     let (w, h) = (720u32, 405u32);
-    let (lx, rx, top) = (64i64, 816i64, 150i64);
+    let (lx, rx, top) = (64i64, 816i64, 172i64);
     place_shot(&mut img, before, lx, top, w, h);
     place_shot(&mut img, after, rx, top, w, h);
     for (x, label, color) in [(lx, "BEFORE", DANGER), (rx, "AFTER", MINT)] {
-        let tw = text_width(label, 22.0, true) as u32 + 28;
-        fill_rect(&mut img, x + 16, top + 16, tw, 38, BG);
         draw_text(
             &mut img,
-            (x + 30) as f32,
-            (top + 43) as f32,
+            x as f32,
+            (top - 14) as f32,
             label,
-            22.0,
+            20.0,
             true,
             color,
         );
     }
     // 数字
     let big = format!("{} apps switched off", stats.switched_off);
-    draw_text(&mut img, 64.0, 660.0, &big, 64.0, true, MINT);
+    draw_text(&mut img, 64.0, 672.0, &big, 64.0, true, MINT);
     let detail: Vec<String> = stats
         .by_category
         .iter()

@@ -15,6 +15,7 @@
     { id: "finish", title: "Finish", sub: "Close debugging" },
   ];
 
+  const shot = typeof location !== "undefined" && location.search.includes("shot");
   let lang: Lang = $state("en");
   let view: View = $state("connect");
   let done = $state(new Set<View>());
@@ -232,7 +233,7 @@
 <div class="shell">
   <aside>
     <div class="brand">
-      <div class="logo"><svg viewBox="0 0 28 26" width="28" height="26"><rect x="1.2" y="1.2" width="25.6" height="17.6" rx="4" fill="none" stroke="var(--mint)" stroke-width="2.4"/><path d="M9 24h10" stroke="var(--mint)" stroke-width="2.4" stroke-linecap="round"/><path d="M8 10.5c2-2.5 4-2.5 6 0s4 2.5 6 0" stroke="var(--mint)" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+      <div class="logo"><svg viewBox="0 0 256 256" width="30" height="30" aria-hidden="true"><rect x="40" y="62" width="176" height="118" rx="24" fill="none" stroke="var(--mint)" stroke-width="18"/><path d="M98 208h60" stroke="var(--mint)" stroke-width="18" stroke-linecap="round"/><path d="M74 121c12-26 24-26 36 0s22 18 32 0s18-8 26 0s12 2 16 0" stroke="var(--mint)" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div><div class="name">hushtv</div><div class="tag">{t("Quiet your Android TV")}</div></div>
     </div>
     <div class="tvpill">
@@ -256,11 +257,11 @@
       <button class:on={lang === "en"} onclick={() => switchLang("en")}>English</button>
       <button class:on={lang === "ja"} onclick={() => switchLang("ja")}>日本語</button>
     </div>
-    <div class="foot">{t("Nothing is uninstalled.")}<br />{t("Every change can be undone.")}<div class="mono dim ver">hushtv v0.2 · MIT</div></div>
+    <div class="foot">{t("Nothing is uninstalled.")}<br />{t("Every change can be undone.")}<div class="mono dim ver">hushtv v0.2.0-beta.1 · MIT</div></div>
   </aside>
 
   <main>
-    {#if !inTauri}<div class="demo">{t("Demo mode: no TV is connected, the data is made up.")}</div>{/if}
+    {#if !inTauri && !shot}<div class="demo">{t("Demo mode: no TV is connected, the data is made up.")}</div>{/if}
     {#if error}<div class="err" role="alert">{error}</div>{/if}
     {#if notice}<div class="okmsg" role="status">{notice}</div>{/if}
 
