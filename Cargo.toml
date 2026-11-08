@@ -1,0 +1,32 @@
+[workspace]
+members = ["crates/hushtv-core", "crates/hushtv-adb", "crates/hushtv-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0-beta.1"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT"
+repository = "https://github.com/kajisho5/hushtv"
+authors = ["Shogo Kajiyama <info@seventh-well.com>"]
+
+[workspace.dependencies]
+hushtv-core = { path = "crates/hushtv-core" }
+hushtv-adb = { path = "crates/hushtv-adb" }
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha1 = "0.11.0"
+include_dir = "0.7.4"
+thiserror = "2.0.21"
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+
+rsa = { version = "0.9.10", features = ["pem"] }
+dirs = "7.0.0"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = "z"
+strip = true

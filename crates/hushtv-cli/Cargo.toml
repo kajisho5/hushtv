@@ -1,0 +1,21 @@
+[package]
+name = "hushtv-cli"
+description = "hushtv のコマンド操作"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "hushtv"
+path = "src/main.rs"
+
+[dependencies]
+hushtv-core.workspace = true
+hushtv-adb.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+dirs.workspace = true

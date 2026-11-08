@@ -1,0 +1,17 @@
+[package]
+name = "hushtv-adb"
+description = "hushtv のテレビとの通信：検出・接続・状態の読み取り・反映"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+hushtv-core.workspace = true
+adb_client = { version = "3.2.3", default-features = false }
+mdns-sd = "0.21.7"
+rsa.workspace = true
+dirs.workspace = true
+thiserror.workspace = true

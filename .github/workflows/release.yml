@@ -1,0 +1,83 @@
+# main に入ったとき、Cargo.toml のバージョン番号がまだリリースされていなければ、自動でリリースを作る。
+name: release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      new: ${{ steps.v.outputs.new }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "$tag はリリース済みです"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "$tag をリリースします"
+          fi
+  build:
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, name: hushtv-linux-x86_64, exe: hushtv }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, name: hushtv-linux-arm64, exe: hushtv }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: hushtv-windows-x86_64, exe: hushtv.exe }
+          - { os: macos-latest, target: aarch64-apple-darwin, name: hushtv-macos-arm64, exe: hushtv }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: hushtv-macos-x86_64, exe: hushtv }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --release --locked -p hushtv-cli --target ${{ matrix.target }}
+      - name: まとめる
+        shell: bash
+        run: |
+          mkdir -p dist/${{ matrix.name }}
+          cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/${{ matrix.name }}/
+          cp README.md LICENSE THIRD-PARTY-NOTICES.md dist/${{ matrix.name }}/
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then 7z a ${{ matrix.name }}.zip ${{ matrix.name }} >/dev/null; else tar czf ${{ matrix.name }}.tar.gz ${{ matrix.name }}; fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.name }}.*
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist && sha256sum * > SHA256SUMS.txt && cd ..
+          tag="${{ needs.version.outputs.tag }}"
+          pre=""
+          case "$tag" in *-*) pre="--prerelease" ;; esac
+          gh release create "$tag" dist/* $pre \
+            --title "hushtv ${{ needs.version.outputs.tag }}" \
+            --notes-file docs/release-notes.md

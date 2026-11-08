@@ -1,0 +1,28 @@
+# 毎週、cleanyourtv の機種別リストを取り込み、変わっていればプルリクエストを作る。
+name: sync-upstream
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: git clone --depth 1 https://github.com/Gathin23/cleanyourtv /tmp/cleanyourtv
+      - run: python3 -I scripts/sync_upstream.py /tmp/cleanyourtv
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- data; then echo "変わりなし"; exit 0; fi
+          branch="sync/cleanyourtv-$(date +%Y%m%d)"
+          git config user.name "hushtv-bot"
+          git config user.email "info@seventh-well.com"
+          git checkout -b "$branch"
+          git add data
+          git commit -m "cleanyourtv の機種別リストを取り込み"
+          git push origin "$branch"
+          gh pr create --title "cleanyourtv の機種別リストを取り込み" --body "毎週の自動取り込みです。テストが通ればマージしてください。"
