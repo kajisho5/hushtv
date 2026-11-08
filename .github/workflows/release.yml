@@ -93,6 +93,14 @@ jobs:
         with:
           key: app-${{ matrix.target }}
       - run: npm ci --prefix ui
+      # Tauri が GitHub から落とす部品（NSIS・linuxdeploy など）を取っておく。GitHub のダウンロードが不調でも作れるように
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: tauri-tools-${{ runner.os }}-${{ hashFiles('ui/package-lock.json') }}
+          restore-keys: tauri-tools-${{ runner.os }}-
       - name: アプリを作る
         shell: bash
         working-directory: crates/hushtv-app
@@ -108,7 +116,7 @@ jobs:
             ../../ui/node_modules/.bin/tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${extra[@]}" && exit 0
             echo "::warning::作り直します（$i 回目が失敗）"
             # 途中までしか落とせなかった部品が残っていると次も失敗するので消す
-            rm -rf "$HOME/.cache/tauri" "${LOCALAPPDATA:-/nonexistent}/tauri" 2>/dev/null || true
+            find "$HOME/.cache/tauri" "${LOCALAPPDATA:-/nonexistent}/tauri" -type f -size -2k -delete 2>/dev/null || true
             sleep $((i * 60))
           done
           exit 1
