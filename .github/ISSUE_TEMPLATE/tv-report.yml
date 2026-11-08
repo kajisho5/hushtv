@@ -1,0 +1,71 @@
+name: TV report / テレビの報告
+description: Tell us how hushtv went on your TV — good or bad. / hushtv を使ってどうだったか（うまくいった・だめだった）を教えてください。
+title: "[TV] "
+labels: ["tv-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! Reports like this decide which TVs we can call safe. Please don't paste serial numbers or your home network details.
+        ありがとうございます。この報告で「安全に使えるテレビ」を増やしていきます。製造番号や家のネットワークの情報は書かないでください。
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result / 結果
+      options:
+        - Worked — no problems / うまくいった（問題なし）
+        - Worked, but something small broke / だいたいOK、小さな不具合あり
+        - Something important broke / 大事な機能が壊れた
+        - Could not connect / つながらなかった
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: TV maker and model / メーカーと型番
+      description: "Shown by `hushtv info` or on the Connect screen. / `hushtv info` か「つなぐ」画面に出ます。"
+      placeholder: "e.g. Examplevision XR-55Z9 / 例：Examplevision XR-55Z9"
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version / Android のバージョン
+      placeholder: "e.g. 12 / 例：12"
+  - type: input
+    id: list
+    attributes:
+      label: List used / 使ったリスト
+      description: The list name hushtv picked (or you chose). / hushtv が選んだ（またはあなたが選んだ）リストの名前。
+  - type: dropdown
+    id: how
+    attributes:
+      label: What you ran / 実行した内容
+      multiple: true
+      options:
+        - Light clean-up / ライト
+        - Full clean-up / フル
+        - Safe mode (batches) / 安全モード（少しずつ）
+        - Check / 確認
+        - Repair / テレビを直す
+        - Restore / 元に戻す
+  - type: input
+    id: hushtv
+    attributes:
+      label: hushtv version / hushtv のバージョン
+      placeholder: "e.g. 0.2.0-beta.4"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / 起きたこと
+      description: What broke or looked wrong, and whether Restore or Repair fixed it. / 何が壊れた・おかしかったか、「元に戻す」「テレビを直す」で直ったか。
+  - type: checkboxes
+    id: app
+    attributes:
+      label: Apps that stopped working / 動かなくなったアプリ
+      options:
+        - label: Home screen / ホーム画面
+        - label: Settings / 設定
+        - label: HDMI inputs or tuner / HDMI 入力・チューナー
+        - label: Voice search or remote buttons / 音声検索・リモコンのボタン
+        - label: A streaming app / 動画アプリ

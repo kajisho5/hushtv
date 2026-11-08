@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Repair guide / 直し方
+    url: https://github.com/kajisho5/hushtv/blob/main/docs/RESCUE.md
+    about: If your TV broke after a clean-up, start here. / 掃除のあとテレビがおかしいときは、まずこちら。
