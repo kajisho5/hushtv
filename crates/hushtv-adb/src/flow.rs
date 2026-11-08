@@ -376,6 +376,19 @@ pub fn rescue_facts(dev: &mut Device) -> Result<hushtv_core::rescue::Facts, Flow
             )
         })
         .collect();
+    let mut settings = std::collections::BTreeMap::new();
+    for (ns, key) in hushtv_core::rescue::SETTINGS_TO_READ
+        .iter()
+        .chain(std::iter::once(&hushtv_core::rescue::VPN_APP_KEY))
+    {
+        settings.insert(
+            key.to_string(),
+            dev.shell(&format!("settings get {ns} {key}"))
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+        );
+    }
     Ok(hushtv_core::rescue::Facts {
         installed,
         disabled,
@@ -383,6 +396,7 @@ pub fn rescue_facts(dev: &mut Device) -> Result<hushtv_core::rescue::Facts, Flow
         home_answer,
         settings_answer,
         scales,
+        settings,
     })
 }
 

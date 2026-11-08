@@ -45,6 +45,39 @@ pub struct Facts {
     pub settings_answer: String,
     /// アニメーション速度（0 だと固まったように見える機種がある）
     pub scales: Vec<(String, String)>,
+    /// そのほかの設定値（`settings get` の答え。キーは [`SETTINGS_TO_READ`] の名前）
+    pub settings: std::collections::BTreeMap<String, String>,
+}
+
+/// 修復の診断で読む設定（名前空間, キー）。どれも cleanyourtv の不具合資料に出てくるもの。
+pub const SETTINGS_TO_READ: [(&str, &str); 9] = [
+    ("global", "private_dns_mode"),
+    ("global", "private_dns_specifier"),
+    ("global", "auto_time"),
+    ("global", "device_provisioned"),
+    ("global", "hdmi_control_enabled"),
+    ("secure", "user_setup_complete"),
+    ("secure", "enabled_accessibility_services"),
+    ("secure", "accessibility_enabled"),
+    ("secure", "always_on_vpn_lockdown"),
+];
+/// 常時オンの VPN のアプリ名（`always_on_vpn_lockdown` と組で読む）。
+pub const VPN_APP_KEY: (&str, &str) = ("secure", "always_on_vpn_app");
+
+static COMPONENT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+$").unwrap()
+});
+
+impl Facts {
+    fn setting(&self, key: &str) -> Option<&str> {
+        self.settings
+            .get(key)
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty() && *v != "null")
+    }
+    fn usable(&self, pkg: &str) -> bool {
+        self.installed.contains(pkg) && !self.disabled.contains(pkg)
+    }
 }
 
 /// 見つかった問題。
@@ -67,6 +100,21 @@ pub enum Problem {
     Debloated { packages: Vec<String> },
     /// アニメーションが 0 になっている
     AnimationsOff,
+    /// プライベート DNS が特定のサーバーに固定されている（1 つのアプリだけ再生できない・停電のあと「インターネットなし」）
+    StrictPrivateDns { host: String, clock_manual: bool },
+    /// 初期設定が終わっていない扱い（ホームと音声ボタンが反応しない）
+    SetupIncomplete,
+    /// ユーザー補助のヘルパーが、消えた・止まったアプリを指している（リモコンのボタンが効かない）
+    StaleAccessibility {
+        stale: Vec<String>,
+        keep: Vec<String>,
+    },
+    /// ユーザー補助の一覧はあるのに、スイッチが 0（ボタンが効かない）
+    AccessibilityFlagOff,
+    /// 常時オンの VPN が、ないアプリに固定されて通信を止めている
+    VpnLockdownMissing { app: String },
+    /// HDMI-CEC が切れている（ほかの機器と連動しない）
+    CecOff,
 }
 
 impl Problem {
@@ -80,6 +128,12 @@ impl Problem {
             Problem::SetupwraithDisabled => 2,
             Problem::RemovedForUser { .. } => 2,
             Problem::AnimationsOff => 1,
+            Problem::StrictPrivateDns { .. } => 3,
+            Problem::SetupIncomplete => 4,
+            Problem::StaleAccessibility { .. } => 2,
+            Problem::AccessibilityFlagOff => 2,
+            Problem::VpnLockdownMissing { .. } => 3,
+            Problem::CecOff => 1,
             Problem::Debloated { .. } => 0,
         }
     }
@@ -153,6 +207,60 @@ impl Problem {
                     format!("機種別リストのアプリが {} 個止まっています", packages.len())
                 } else {
                     format!("{} apps from the debloat lists are off", packages.len())
+                }
+            }
+            Problem::StrictPrivateDns { host, .. } => {
+                if ja {
+                    format!(
+                        "プライベート DNS が {host} に固定されています（1 つのアプリだけ再生できない・停電のあと「インターネットなし」の原因）"
+                    )
+                } else {
+                    format!(
+                        "Private DNS is pinned to {host} (one app won't play, \"No internet\" after a power cut)"
+                    )
+                }
+            }
+            Problem::SetupIncomplete => {
+                if ja {
+                    "初期設定が終わっていない扱いです（ホームと音声ボタンが反応しない原因）".into()
+                } else {
+                    "Setup is marked unfinished (Home and voice buttons do nothing)".into()
+                }
+            }
+            Problem::StaleAccessibility { stale, .. } => {
+                if ja {
+                    format!(
+                        "ユーザー補助が、消えた・止まったアプリを {} 個指しています（リモコンのボタンが効かない原因）",
+                        stale.len()
+                    )
+                } else {
+                    format!(
+                        "Accessibility points at {} missing or disabled apps (dead remote buttons)",
+                        stale.len()
+                    )
+                }
+            }
+            Problem::AccessibilityFlagOff => {
+                if ja {
+                    "ユーザー補助のスイッチが切れています（ボタンの割り当てが効かない原因）".into()
+                } else {
+                    "Accessibility is switched off while helpers are listed (button mapping does nothing)".into()
+                }
+            }
+            Problem::VpnLockdownMissing { app } => {
+                if ja {
+                    format!(
+                        "常時オンの VPN が、ないアプリ（{app}）に固定され、通信が止まっています"
+                    )
+                } else {
+                    format!("Always-on VPN is locked to a missing app ({app}); traffic is blocked")
+                }
+            }
+            Problem::CecOff => {
+                if ja {
+                    "HDMI-CEC が切れています（ほかの機器と連動しない）".into()
+                } else {
+                    "HDMI-CEC is off (no control of other devices)".into()
                 }
             }
             Problem::AnimationsOff => {
@@ -247,6 +355,47 @@ pub fn diagnose(f: &Facts) -> Vec<Problem> {
     if !removed.is_empty() {
         out.push(Problem::RemovedForUser { packages: removed });
     }
+    if f.setting("private_dns_mode") == Some("hostname") {
+        let host = f
+            .setting("private_dns_specifier")
+            .unwrap_or("?")
+            .to_string();
+        out.push(Problem::StrictPrivateDns {
+            host,
+            clock_manual: f.setting("auto_time") == Some("0"),
+        });
+    }
+    if f.setting("user_setup_complete") == Some("0") && f.setting("device_provisioned") == Some("1")
+    {
+        out.push(Problem::SetupIncomplete);
+    }
+    if let Some(list) = f.setting("enabled_accessibility_services") {
+        let (mut keep, mut stale) = (vec![], vec![]);
+        for c in list.split(':').map(str::trim).filter(|c| !c.is_empty()) {
+            let pkg = c.split('/').next().unwrap_or("");
+            if COMPONENT_RE.is_match(c) && f.usable(pkg) {
+                keep.push(c.to_string())
+            } else {
+                stale.push(c.to_string())
+            }
+        }
+        if !stale.is_empty() {
+            out.push(Problem::StaleAccessibility { stale, keep });
+        } else if !keep.is_empty() && f.setting("accessibility_enabled") == Some("0") {
+            out.push(Problem::AccessibilityFlagOff);
+        }
+    }
+    if f.setting("always_on_vpn_lockdown") == Some("1")
+        && let Some(app) = f.setting(VPN_APP_KEY.1)
+        && !f.usable(app)
+    {
+        out.push(Problem::VpnLockdownMissing {
+            app: app.to_string(),
+        });
+    }
+    if f.setting("hdmi_control_enabled") == Some("0") {
+        out.push(Problem::CecOff);
+    }
     if f.scales
         .iter()
         .any(|(_, v)| v.trim() == "0" || v.trim() == "0.0")
@@ -274,6 +423,7 @@ pub fn fix_commands(problems: &[Problem], f: &Facts, level: Level) -> Vec<String
     let mut reinstall: BTreeSet<String> = BTreeSet::new();
     let mut set_home = false;
     let mut scales = false;
+    let mut settings: Vec<String> = vec![];
     for p in problems {
         match p {
             Problem::CoreDisabled { packages } | Problem::InputDisabled { packages } => {
@@ -321,6 +471,43 @@ pub fn fix_commands(problems: &[Problem], f: &Facts, level: Level) -> Vec<String
                 }
             }
             Problem::AnimationsOff => scales = true,
+            Problem::StrictPrivateDns { clock_manual, .. } => {
+                settings.push("settings put global private_dns_mode opportunistic".into());
+                if *clock_manual {
+                    settings.push("settings put global auto_time 1".into());
+                }
+            }
+            Problem::SetupIncomplete => {
+                settings.push("settings put secure user_setup_complete 1".into())
+            }
+            Problem::StaleAccessibility { keep, .. } => {
+                // 一度消してから、生きているものだけ書き戻す（書き戻すだけでは結び付かない機種がある）
+                settings.push("settings delete secure enabled_accessibility_services".into());
+                let keep: Vec<&str> = keep
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|c| COMPONENT_RE.is_match(c))
+                    .collect();
+                if !keep.is_empty() {
+                    settings.push(format!(
+                        "settings put secure enabled_accessibility_services {}",
+                        keep.join(":")
+                    ));
+                    settings.push("settings put secure accessibility_enabled 1".into());
+                }
+            }
+            Problem::AccessibilityFlagOff => {
+                settings.push("settings put secure accessibility_enabled 1".into())
+            }
+            Problem::VpnLockdownMissing { .. } => {
+                settings.push("settings delete secure always_on_vpn_app".into());
+                settings.push("settings delete secure always_on_vpn_lockdown".into());
+            }
+            Problem::CecOff => {
+                if level == Level::All {
+                    settings.push("settings put global hdmi_control_enabled 1".into());
+                }
+            }
             Problem::Debloated { packages } => {
                 if level == Level::All {
                     enable.extend(packages.iter().cloned());
@@ -358,6 +545,7 @@ pub fn fix_commands(problems: &[Problem], f: &Facts, level: Level) -> Vec<String
                 .map(|k| format!("settings put global {k} 1.0")),
         );
     }
+    cmds.extend(settings);
     cmds
 }
 
@@ -403,6 +591,7 @@ mod tests {
             home_answer: "com.google.android.tungsten.setupwraith/.RecoveryActivity".into(),
             settings_answer: "com.android.tv.settings/.MainSettings".into(),
             scales: vec![("window_animation_scale".into(), "0".into())],
+            settings: Default::default(),
         }
     }
 
@@ -456,6 +645,86 @@ mod tests {
             ..Default::default()
         };
         assert!(diagnose(&f).is_empty());
+    }
+
+    #[test]
+    fn settings_problems_from_the_troubleshooting_guide() {
+        let mut f = Facts {
+            installed: set(&[
+                "com.google.android.tvlauncher",
+                "com.android.tv.settings",
+                "com.example.helper",
+            ]),
+            disabled: set(&["com.example.helper"]),
+            all: set(&[
+                "com.google.android.tvlauncher",
+                "com.android.tv.settings",
+                "com.example.helper",
+            ]),
+            home_answer: "com.google.android.tvlauncher/.MainActivity".into(),
+            settings_answer: "com.android.tv.settings/.MainSettings".into(),
+            ..Default::default()
+        };
+        for (k, v) in [
+            ("private_dns_mode", "hostname"),
+            ("private_dns_specifier", "dns.example.net"),
+            ("auto_time", "0"),
+            ("user_setup_complete", "0"),
+            ("device_provisioned", "1"),
+            (
+                "enabled_accessibility_services",
+                "com.example.helper/.KeyService:com.android.tv.settings/.Talk",
+            ),
+            ("always_on_vpn_lockdown", "1"),
+            ("always_on_vpn_app", "com.example.gonevpn"),
+            ("hdmi_control_enabled", "0"),
+        ] {
+            f.settings.insert(k.into(), v.into());
+        }
+        let p = diagnose(&f);
+        assert!(p.iter().any(|x| matches!(x, Problem::StrictPrivateDns { host, clock_manual: true } if host == "dns.example.net")));
+        assert!(p.contains(&Problem::SetupIncomplete));
+        assert!(p.iter().any(|x| matches!(x, Problem::StaleAccessibility { stale, keep } if stale.len() == 1 && keep.len() == 1)));
+        assert!(
+            p.iter()
+                .any(|x| matches!(x, Problem::VpnLockdownMissing { .. }))
+        );
+        let quick = fix_commands(&p, &f, Level::Quick);
+        assert!(quick.contains(&"settings put global private_dns_mode opportunistic".into()));
+        assert!(quick.contains(&"settings put global auto_time 1".into()));
+        assert!(quick.contains(&"settings put secure user_setup_complete 1".into()));
+        assert!(
+            quick.contains(
+                &"settings put secure enabled_accessibility_services com.android.tv.settings/.Talk"
+                    .into()
+            )
+        );
+        assert!(quick.contains(&"settings delete secure always_on_vpn_lockdown".into()));
+        assert!(
+            !quick.iter().any(|c| c.contains("hdmi_control_enabled")),
+            "CEC は「全部戻す」のときだけ"
+        );
+        assert!(
+            fix_commands(&p, &f, Level::All)
+                .contains(&"settings put global hdmi_control_enabled 1".into())
+        );
+    }
+
+    #[test]
+    fn hostile_setting_values_never_reach_the_shell() {
+        let mut f = Facts {
+            home_answer: "com.a.b/.C".into(),
+            settings_answer: "x/y".into(),
+            ..Default::default()
+        };
+        f.installed = set(&["com.a.b"]);
+        f.settings.insert(
+            "enabled_accessibility_services".into(),
+            "com.a.b/.K;reboot:com.a.b/.Ok".into(),
+        );
+        let p = diagnose(&f);
+        let cmds = fix_commands(&p, &f, Level::Quick);
+        assert!(cmds.iter().all(|c| !c.contains("reboot")));
     }
 
     #[test]

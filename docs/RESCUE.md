@@ -18,6 +18,14 @@ hushtv rescue 192.168.1.50 --record     # replay a restore record (cleanyourtv, 
 | Setup wizard off | Wi-Fi disappears, casting says "Untrusted device" | Turns it back on |
 | Apps uninstalled for the user | An app or feature is gone | Reinstalls the copy still on the TV (vital ones only; `--level all` for every listed app) |
 | Animations at 0 | UI looks frozen | Sets them back to 1.0 |
+| Private DNS pinned to one server | One app won't play while the rest work; "No internet" after a power cut (the clock booted wrong and the encrypted DNS can't check the certificate) | Sets Private DNS back to automatic, and turns automatic time on if it was off |
+| Setup marked unfinished | Home and the voice/Alexa button do nothing | Marks setup as complete |
+| Accessibility points at a missing or disabled app | A remapped remote button does nothing | Clears the list, writes back only the helpers that still exist, switches accessibility on |
+| Accessibility switched off with helpers listed | Button mapping does nothing | Switches it back on |
+| Always-on VPN locked to an app that is gone | No app can connect | Removes the always-on VPN lock |
+| HDMI-CEC off | The TV no longer controls the soundbar or player | `--level all` only (it may be off on purpose) |
+
+These come from [cleanyourtv's troubleshooting guide](https://github.com/Gathin23/cleanyourtv/blob/main/docs/TROUBLESHOOTING.md). Problems that need the TV's own menus or a person at the TV (a factory-test menu that was opened, remote buttons that need a key helper, soundbar wake-up) are not repaired automatically.
 
 ## If the TV cannot be reached
 
@@ -37,6 +45,8 @@ Reboot the TV after a rescue, then check Home, every input, Settings and Wi-Fi.
 - 既定（応急処置）：起動・ホーム・設定・入力・Wi-Fi にかかわるものだけ戻す
 - `--level all`：機種別リストに載っているアプリを全部戻す
 - `--record`：残っている戻す記録どおりに戻す（3 つのツールで同じ形式）
+
+**直せるもの（cleanyourtv の不具合資料から）**：Android の中核・ホーム・設定・入力（HDMI・チューナー）・初期設定画面・消されたアプリ・アニメーション 0 に加えて、プライベート DNS の固定（1 つのアプリだけ再生できない、停電のあと「インターネットなし」）、初期設定が終わっていない扱い（ホームと音声ボタンが反応しない）、ユーザー補助が消えたアプリを指している（リモコンのボタンが効かない）、ないアプリに固定された常時オン VPN、HDMI-CEC（「全部戻す」のときだけ）。工場メニューを開いてしまった、など、テレビの前での操作が要るものは自動では直しません。
 
 **つながらないとき**
 

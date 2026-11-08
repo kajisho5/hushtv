@@ -1,13 +1,19 @@
-**The desktop app.** Download the app for your computer below (`.dmg` for macOS, `-setup.exe` for Windows, `.AppImage` or `.deb` for Linux), or the one-file command line (`hushtv-*`). Not yet tried on a real TV: look at the plan before you apply, and keep the restore point.
+**Test release.** Download the app for your computer below (`.dmg` for macOS, `-setup.exe` for Windows, `.AppImage` or `.deb` for Linux), or the one-file command line (`hushtv-*`). Not yet tried on a real TV.
 
-New in 0.2.0-beta.1:
-- **The hushtv app** (Tauri + Svelte, about 5 MB): Connect, Clean up (Light / Full, safe mode), Check after updates, Finish (share image, Post to X, close debugging, undo everything) and **Repair a TV**. English and Japanese.
-- **Repair** in the app as well as `hushtv rescue`.
-- Logo, icons and social preview.
+New in 0.2.0-beta.2 — Repair now covers the rest of cleanyourtv's troubleshooting guide:
+- Private DNS pinned to one server (one app won't play, "No internet" after a power cut) → back to automatic, automatic time on
+- Setup marked unfinished (Home and voice buttons dead) → marked complete
+- Accessibility pointing at a missing or disabled app, or switched off (dead remote buttons) → cleaned and switched back on
+- Always-on VPN locked to an app that is gone → lock removed
+- HDMI-CEC off → turned back on with "Everything" only
 
 The installers are not signed yet: on macOS, right-click → Open the first time; on Windows, SmartScreen → More info → Run anyway.
 
-パソコン用アプリの最初のテスト版です。実機のテレビではまだ試していません。
+テスト用リリースです。実機のテレビではまだ試していません。
 
-- アプリ（約 5MB）：つなぐ／片付ける（軽め・全部、安全モード）／点検／終わる（共有画像・X に投稿・デバッグを閉じる・すべて元に戻す）／テレビを直す。英語と日本語
-- 署名はまだありません。Mac は初回だけ右クリック → 開く、Windows は「詳細情報」→「実行」
+0.2.0-beta.2 で「テレビを直す」に追加（cleanyourtv の不具合資料の後半から）：
+- プライベート DNS の固定 → 自動に戻す（時刻の自動設定もオン）
+- 初期設定が終わっていない扱い → 完了にする
+- ユーザー補助が消えた・止まったアプリを指している／スイッチが切れている → 整理してオン
+- ないアプリに固定された常時オン VPN → 固定を外す
+- HDMI-CEC → 「全部戻す」のときだけオン
