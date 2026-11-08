@@ -3,14 +3,13 @@
   import { t, setLang, type Lang } from "./lib/i18n";
   import {
     call, inTauri, onProgress, openUrl, reveal, copyPng,
-    type Found, type Connected, type PlanView, type ApplyView, type DriftView, type RescueView, type ProblemView, type Progress,
+    type Found, type Connected, type UpdateInfo, type PlanView, type ApplyView, type DriftView, type RescueView, type ProblemView, type Progress,
   } from "./lib/api";
 
-  type View = "connect" | "clean" | "home" | "check" | "finish" | "rescue";
+  type View = "connect" | "clean" | "check" | "finish" | "rescue";
   const steps: { id: View; title: string; sub: string }[] = [
     { id: "connect", title: "Connect", sub: "Find your TV" },
     { id: "clean", title: "Clean up", sub: "Switch off the bloat" },
-    { id: "home", title: "Home screen", sub: "An ad-free home" },
     { id: "check", title: "Check", sub: "Fix it after updates" },
     { id: "finish", title: "Finish", sub: "Close debugging" },
   ];
@@ -56,6 +55,26 @@
   let closed = $state<boolean | null>(null);
   let notice = $state("");
 
+  // 自動アップデート
+  let update = $state<UpdateInfo | null>(null);
+  let showUpdate = $state(false);
+  const whatsNew = $derived(
+    ((update?.notes ?? "").split("---ja---")[String(lang) === "ja" && (update?.notes ?? "").includes("---ja---") ? 1 : 0] ?? "").split("\n").filter((l) => l.startsWith("- ")).map((l) => l.slice(2).replace(/\*\*|`/g, "").replace(/\s*https?:\/\/\S+/g, "")).slice(0, 5),
+  );
+
+  async function checkUpdate() {
+    try {
+      update = await call<UpdateInfo | null>("update_check");
+    } catch (e) {
+      addLog(`update: ${e}`);
+    }
+  }
+
+  async function installUpdate() {
+    showUpdate = false;
+    await run(t("Updating… hushtv restarts when it's done."), () => call<void>("update_install"));
+  }
+
   function addLog(s: string) {
     log = [...log.slice(-200), `${new Date().toLocaleTimeString()}  ${s}`];
   }
@@ -90,6 +109,7 @@
       addLog(busy);
     });
     scan();
+    checkUpdate();
     })();
     return () => un?.();
   });
@@ -207,7 +227,8 @@
     result = r;
     done = new Set([...done, "clean"]);
     addLog(`${t("Switched off")}: ${r.disabled}`);
-    view = "home";
+    view = "check";
+    loadDrift();
   }
 
   async function loadDrift() {
@@ -300,13 +321,39 @@
       {/each}
     </nav>
     <div class="spacer"></div>
+    {#if update}
+      <button class="updatecard" onclick={() => (showUpdate = true)} disabled={!!busy}>
+        <span class="uicon">↓</span>
+        <span><b>{t("New version {v}", { v: update.version })}</b><span class="mint small b">{t("Update")} →</span></span>
+      </button>
+    {/if}
     <button class="repair" class:active={view === "rescue"} onclick={() => go("rescue")}>⚠ {t("Repair a TV")}</button>
     <div class="langs">
       <button class:on={lang === "en"} onclick={() => switchLang("en")}>English</button>
       <button class:on={lang === "ja"} onclick={() => switchLang("ja")}>日本語</button>
     </div>
-    <div class="foot">{t("Nothing is uninstalled.")}<br />{t("Every change can be undone.")}<div class="mono dim ver">hushtv v0.2.0-beta.5 · MIT</div></div>
+    <div class="foot">{t("Nothing is uninstalled.")}<br />{t("Every change can be undone.")}<div class="mono dim ver">hushtv v0.2.0-beta.6 · MIT</div></div>
   </aside>
+
+  {#if showUpdate && update}
+    <div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) showUpdate = false; }}>
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="uptitle">
+        <div class="dhead">
+          <span class="uicon big">↓</span>
+          <div><h2 id="uptitle">{t("Update to hushtv {v}", { v: update.version })}</h2><div class="sub small">{t("You have {v}", { v: update.current })}</div></div>
+        </div>
+        {#if whatsNew.length}
+          <div class="sub small b">{t("What's new")}</div>
+          <ul class="news">{#each whatsNew as n}<li>{n}</li>{/each}</ul>
+        {/if}
+        <div class="infobox sub small">{t("Your TV settings and restore points stay as they are.")}<br />{t("The update is checked against the developer's signature first.")}</div>
+        <div class="dbtns">
+          <button onclick={() => (showUpdate = false)}>{t("Later")}</button>
+          <button class="primary" onclick={installUpdate} disabled={!!busy}>{t("Update and restart")}</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <main>
     {#if !inTauri && !shot}<div class="demo">{t("Demo mode: no TV is connected, the data is made up.")}</div>{/if}
@@ -416,11 +463,6 @@
       </div>
     {/if}
 
-    {#if view === "home"}
-      <h1>{t("An ad-free home screen")}</h1>
-      <section class="panel"><p class="sub">{t("Installing the ad-free home screen comes in the next version. Your TV is already cleaned up.")}</p></section>
-    {/if}
-
     {#if view === "check"}
       <h1>{t("Check after an update")}</h1>
       <p class="sub">{t("Compares your TV with your last cleanup.")}</p>
@@ -498,8 +540,6 @@
       {#if view === "clean"}
         <button class="primary" onclick={apply} disabled={!picked.size || !!busy}>{t("Save restore point and apply ({n})", { n: picked.size })}</button>
         <label class="toggle"><input type="checkbox" bind:checked={safe} /> <span><b>{t("Safe mode")}</b><br /><span class="sub small">{t("{n} at a time, checked", { n: batch })}</span></span></label>
-        <button class="link" onclick={() => go("home")}>{t("Next: {s}", { s: t("Home screen") })} →</button>
-      {:else if view === "home"}
         <button class="link" onclick={() => go("check")}>{t("Next: {s}", { s: t("Check") })} →</button>
       {:else if view === "check"}
         <button onclick={loadDrift} disabled={!!busy}>{t("Check again")}</button>
@@ -536,6 +576,19 @@
   .st { display: block; font-size: 15px; font-weight: 600; }
   .ss { display: block; font-size: 11px; color: var(--dim); font-weight: 400; }
   .spacer { flex: 1; }
+  .updatecard { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--mintbg); border: 1px solid var(--mint); border-radius: 10px; padding: 10px 12px; height: auto; color: var(--text); }
+  .updatecard b { display: block; font-size: 13px; }
+  .uicon { width: 20px; height: 20px; border-radius: 50%; background: var(--mint); color: var(--ink); display: grid; place-items: center; font-weight: 800; font-size: 13px; flex: none; }
+  .uicon.big { width: 36px; height: 36px; font-size: 18px; background: var(--mintbg); color: var(--mint); }
+  .overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; z-index: 50; }
+  .dialog { width: 480px; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .dhead { display: flex; gap: 14px; align-items: center; }
+  .dhead h2 { margin: 0; font-size: 20px; }
+  .news { margin: 0; padding-left: 18px; line-height: 1.8; }
+  .news li::marker { color: var(--mint); }
+  .infobox { background: var(--panel2); border-radius: 10px; padding: 10px 14px; line-height: 1.7; }
+  .dbtns { display: grid; grid-template-columns: 1fr 1.1fr; gap: 16px; margin-top: 8px; }
+  .dbtns button { height: 44px; }
   .repair { border-color: var(--border); text-align: left; height: 44px; color: var(--sub); }
   .repair.active { border-color: var(--warn); color: var(--text); background: var(--panel2); }
   .langs { display: flex; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); padding: 3px; }

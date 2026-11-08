@@ -2032,7 +2032,7 @@ checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
 name = "hushtv-adb"
-version = "0.2.0-beta.5"
+version = "0.2.0-beta.6"
 dependencies = [
  "adb_client",
  "aes-gcm",
@@ -2056,7 +2056,7 @@ dependencies = [
 
 [[package]]
 name = "hushtv-app"
-version = "0.2.0-beta.5"
+version = "0.2.0-beta.6"
 dependencies = [
  "base64 0.23.1",
  "dirs",
@@ -2073,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "hushtv-card"
-version = "0.2.0-beta.5"
+version = "0.2.0-beta.6"
 dependencies = [
  "ab_glyph",
  "image",
@@ -2081,7 +2081,7 @@ dependencies = [
 
 [[package]]
 name = "hushtv-cli"
-version = "0.2.0-beta.5"
+version = "0.2.0-beta.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -2094,7 +2094,7 @@ dependencies = [
 
 [[package]]
 name = "hushtv-core"
-version = "0.2.0-beta.5"
+version = "0.2.0-beta.6"
 dependencies = [
  "include_dir",
  "regex",

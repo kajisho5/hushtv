@@ -30,7 +30,7 @@ Nothing uninstalled · Every change can be undone · One Rust app, no adb</p>
   <a href="https://github.com/kajisho5/hushtv/releases"><img src="brand/og.png" width="720" alt="hushtv: quiet your Android TV. An apply run finds the closest tested list, keeps 6 apps on for safety, saves a restore point, switches apps off in checked batches and reports 20 apps switched off with 0 problems."></a>
 </p>
 
-> **Status: v0.2.0-beta.5.** The safety rules are ported from cleanyourtv and covered by tests, and the app has been run on Linux, but **hushtv has not been tried on a real TV yet**. Look at the plan before you apply, keep the restore point, and please [report how it went](https://github.com/kajisho5/hushtv/issues/new?template=tv-report.yml).
+> **Status: v0.2.0-beta.6.** The safety rules are ported from cleanyourtv and covered by tests, and the app has been run on Linux, but **hushtv has not been tried on a real TV yet**. Look at the plan before you apply, keep the restore point, and please [report how it went](https://github.com/kajisho5/hushtv/issues/new?template=tv-report.yml).
 
 <table>
   <tr>
@@ -157,7 +157,7 @@ MIT
 
 <p><b>Android TV / Google TV に最初から入っている広告・追跡・おすすめ欄のアプリを、パソコンから Wi-Fi 経由で止めます。</b>アプリは削除しません。全部元に戻せます。</p>
 
-> **今の状態：v0.2.0-beta.5。** 安全装置は cleanyourtv から移してテストで確かめ、アプリは Linux で動かしています。ただし**実機のテレビではまだ試していません**。反映の前に中身を確かめ、戻す記録を残してください。使ってみたら[結果を教えてください](https://github.com/kajisho5/hushtv/issues/new?template=tv-report.yml)。
+> **今の状態：v0.2.0-beta.6。** 安全装置は cleanyourtv から移してテストで確かめ、アプリは Linux で動かしています。ただし**実機のテレビではまだ試していません**。反映の前に中身を確かめ、戻す記録を残してください。使ってみたら[結果を教えてください](https://github.com/kajisho5/hushtv/issues/new?template=tv-report.yml)。
 
 <table>
   <tr>

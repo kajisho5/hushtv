@@ -144,13 +144,13 @@ def updater(version: str, dist: pathlib.Path) -> str | None:
     notes_file = pathlib.Path(__file__).resolve().parent.parent / "docs" / "release-notes.md"
     notes = ""
     if notes_file.is_file():
-        # 英語の部分だけ（日本語の段落の手前まで）
-        lines = []
+        # 英語の段落と日本語の段落を分けて入れる（アプリが言語に合わせて選ぶ）
+        en, ja, in_ja = [], [], False
         for line in notes_file.read_text().splitlines():
-            if any(ord(c) > 0x2E7F for c in line) and not line.startswith(("-", "*", "New")):
-                break
-            lines.append(line)
-        notes = "\n".join(lines).strip()
+            if not in_ja and any(ord(c) > 0x2E7F for c in line) and not line.startswith(("-", "*", "New")):
+                in_ja = True
+            (ja if in_ja else en).append(line)
+        notes = "\n".join(en).strip() + "\n---ja---\n" + "\n".join(ja).strip()
     manifest = {
         "version": version,
         "notes": notes,
