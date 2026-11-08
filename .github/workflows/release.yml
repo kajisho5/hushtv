@@ -106,7 +106,10 @@ jobs:
           # 部品のダウンロードが GitHub 側の一時的なエラー（504 など）で落ちることがあるので 5 回まで試す
           for i in 1 2 3 4 5; do
             ../../ui/node_modules/.bin/tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${extra[@]}" && exit 0
-            echo "::warning::作り直します（$i 回目が失敗）"; sleep $((i * 60))
+            echo "::warning::作り直します（$i 回目が失敗）"
+            # 途中までしか落とせなかった部品が残っていると次も失敗するので消す
+            rm -rf "$HOME/.cache/tauri" "${LOCALAPPDATA:-/nonexistent}/tauri" 2>/dev/null || true
+            sleep $((i * 60))
           done
           exit 1
       - name: まとめる
