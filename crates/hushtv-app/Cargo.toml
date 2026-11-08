@@ -1,0 +1,27 @@
+[package]
+name = "hushtv-app"
+description = "hushtv のパソコン用アプリ（Tauri）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "hushtv-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+hushtv-core.workspace = true
+hushtv-adb.workspace = true
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-opener = "2.7.2"
+tauri-plugin-clipboard-manager = "2.5.0"
+serde.workspace = true
+serde_json.workspace = true
+base64 = "0.23.1"
+dirs.workspace = true

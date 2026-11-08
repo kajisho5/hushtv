@@ -62,8 +62,51 @@ jobs:
         with:
           name: ${{ matrix.name }}
           path: dist/${{ matrix.name }}.*
+  app:
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, bundles: "appimage,deb" }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, bundles: "nsis,msi" }
+          - { os: macos-latest, target: aarch64-apple-darwin, bundles: "dmg" }
+          - { os: macos-latest, target: x86_64-apple-darwin, bundles: "dmg" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux の部品
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libxdo-dev
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: app-${{ matrix.target }}
+      - run: npm ci --prefix ui
+      - name: アプリを作る
+        shell: bash
+        working-directory: crates/hushtv-app
+        run: ../../ui/node_modules/.bin/tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: まとめる
+        shell: bash
+        run: |
+          mkdir -p dist
+          find target/${{ matrix.target }}/release/bundle -maxdepth 2 -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} dist/ \;
+          ls -la dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app-${{ matrix.target }}
+          path: dist/*
   publish:
-    needs: [version, build]
+    needs: [version, build, app]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

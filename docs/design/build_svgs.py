@@ -88,7 +88,7 @@ def sidebar(active, done):
     o.append(t(76, 45, "hushtv", 20, C["text"], 700))
     o.append(t(76, 62, "テレビを静かにする", 11, C["sub"]))
     # 接続中のテレビ
-    connected = active > 0
+    connected = active != 0
     o.append(r(20, 92, 220, 52, C["panel"], rx=12, stroke=C["border"]))
     o.append(f'<circle cx="38" cy="118" r="5" fill="{C["ok"] if connected else C["dim"]}"/>')
     o.append(t(52, 114, "リビングのテレビ" if connected else "未接続", 13, C["text"], 600))
@@ -109,6 +109,11 @@ def sidebar(active, done):
         o.append(t(72, y + 26, title, 15, C["text"] if i == active or i in done else C["sub"], 700 if i == active else 500))
         o.append(t(72, y + 44, sub, 11, C["sub"] if i == active else C["dim"]))
         y += 68
+    # テレビを直す
+    rescue_on = active == -1
+    o.append(r(16, H - 214, 228, 44, C["panel2"] if rescue_on else C["side"], rx=10, stroke=C["warn"] if rescue_on else C["border"]))
+    o.append(f'<path d="M34 {H-200}l8 16h-16z" fill="none" stroke="{C["warn"]}" stroke-width="1.8" stroke-linejoin="round"/>')
+    o.append(t(56, H - 186, "テレビを直す", 13, C["text"] if rescue_on else C["sub"], 700))
     # 言語の切り替え
     o.append(r(24, H - 158, 212, 32, C["panel"], rx=8, stroke=C["border"]))
     on_en = LANG == "en"
@@ -465,8 +470,60 @@ def screen_finish():
     page("5-finish", 4, {0, 1, 2, 3}, "".join(o))
 
 
+def screen_rescue():
+    o = [header("テレビを直す", "ほかのツール（cleanyourtv・CleanMyTV・adb）で止めすぎて調子が悪くなったテレビを診断します。", "直し方は「戻す」だけ。止めたり消したりはしません。")]
+    o.append(r(300, 136, 600, 420, C["panel"], rx=14, stroke=C["border"]))
+    o.append(t(324, 168, "見つかった問題", 16, C["text"], 700))
+    probs = [("!!", "ホームボタンで開くホーム画面がありません", "今: 初期設定画面（真っ黒になる原因）", C["danger"], C["dangerbg"]),
+             ("!!", "Android の中核が 2 個止まっています", "起動しない・再起動を繰り返す原因", C["danger"], C["dangerbg"]),
+             ("!", "入力切替・チューナーまわりが 1 個止まっています", "HDMI が「信号なし」になる原因", C["warn"], C["warnbg"]),
+             ("!", "初期設定画面が止まっています", "Wi-Fi が消える・キャストできない原因", C["warn"], C["warnbg"]),
+             ("-", "機種別リストのアプリが 31 個止まっています", "「全部戻す」のときだけ戻します", C["sub"], C["panel2"])]
+    y = 186
+    for mark, a, b, col, bg in probs:
+        o.append(r(316, y, 568, 62, C["panel2"], rx=10))
+        o.append(r(330, y + 16, 30, 30, bg, rx=15) + t(345, y + 36, mark, 13, col, 700, "middle"))
+        o.append(t(374, y + 28, a, 14, C["text"], 600))
+        o.append(t(374, y + 48, b, 12, C["sub"]))
+        y += 72
+    # 直し方
+    o.append(r(930, 136, 310, 420, C["panel"], rx=14, stroke=C["border"]))
+    o.append(t(954, 168, "直し方を選ぶ", 16, C["text"], 700))
+    opts = [("応急処置（おすすめ）", "起動・ホーム・設定・入力・Wi-Fi に", "かかわるものだけ戻す", True),
+            ("記録どおりに戻す", "cleanyourtv・CleanMyTV の記録が", "1 件見つかりました（10/30）", False),
+            ("全部戻す", "機種別リストのアプリを", "全部もう一度使えるようにする", False)]
+    y = 186
+    for a, b, c, on in opts:
+        o.append(r(946, y, 278, 92, C["panel2"] if on else C["panel"], rx=10, stroke=C["mint"] if on else C["border"], sw=1.6 if on else 1))
+        o.append(f'<circle cx="966" cy="{y+24}" r="8" fill="none" stroke="{C["mint"] if on else C["dim"]}" stroke-width="2"/>')
+        if on:
+            o.append(f'<circle cx="966" cy="{y+24}" r="4" fill="{C["mint"]}"/>')
+        o.append(t(984, y + 29, a, 14, C["text"], 700))
+        o.append(t(966, y + 56, b, 12, C["sub"]))
+        o.append(t(966, y + 74, c, 12, C["sub"]))
+        y += 104
+    o.append(button(946, 500, 278, "直す（戻すだけ）"))
+    # つながらないとき
+    o.append(r(300, 576, 940, 124, C["panel"], rx=14, stroke=C["border"]))
+    o.append(t(324, 606, "テレビにつながらないとき", 15, C["text"], 700))
+    tips = [("Wi-Fi が消えた", "有線 LAN をつなぐか、", "設定から Wi-Fi に入り直す"),
+            ("画面が真っ黒", "リモコンの設定ボタンで設定を開き、", "デバッグをオンにしてやり直す"),
+            ("起動ロゴのまま", "どのツールも届きません。", "リカバリーから初期化（説明書を確認）")]
+    x = 324
+    for a, b, c in tips:
+        o.append(t(x, 636, a, 13, C["warn"], 700))
+        o.append(t(x, 658, b, 12, C["sub"]))
+        o.append(t(x, 676, c, 12, C["sub"]))
+        x += 306
+    o.append(f'<line x1="260" y1="716" x2="{W}" y2="716" stroke="{C["border"]}"/>')
+    o.append(t(300, 754, "▲ 実行ログ", 13, C["sub"], 600))
+    o.append(button(470, 732, 200, "診断だけする", "secondary"))
+    o.append(t(1240, 759, "直したらテレビを再起動して確かめる", 12, C["dim"], anchor="end"))
+    page("6-rescue", -1, {0}, "".join(o))
+
+
 def build_all():
-    screen_connect(); screen_clean(); screen_home(); screen_check(); screen_finish()
+    screen_connect(); screen_clean(); screen_home(); screen_check(); screen_finish(); screen_rescue()
 
 
 if __name__ == "__main__":

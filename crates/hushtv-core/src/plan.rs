@@ -142,6 +142,25 @@ pub fn names(list: &DebloatList) -> Vec<String> {
     list.disable.iter().map(|e| e.package.clone()).collect()
 }
 
+/// 各パッケージが、同梱リストのいくつで「止める」になっているか（画面の「41 機種で停止」）。
+pub fn list_counts() -> &'static std::collections::HashMap<String, usize> {
+    static C: std::sync::LazyLock<std::collections::HashMap<String, usize>> =
+        std::sync::LazyLock::new(|| {
+            let mut m = std::collections::HashMap::new();
+            for info in crate::lists::all() {
+                if let Some((_, text)) = info.files.first()
+                    && let Ok(list) = crate::list::parse(text)
+                {
+                    for e in list.disable {
+                        *m.entry(e.package).or_insert(0) += 1;
+                    }
+                }
+            }
+            m
+        });
+    &C
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/hushtv-core", "crates/hushtv-adb", "crates/hushtv-card", "crates/hushtv-cli"]
+members = ["crates/hushtv-core", "crates/hushtv-adb", "crates/hushtv-card", "crates/hushtv-cli", "crates/hushtv-app"]
 resolver = "2"
 
 [workspace.package]

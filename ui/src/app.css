@@ -1,0 +1,29 @@
+:root {
+  --bg: #0b1020; --side: #0f1629; --panel: #141c33; --panel2: #1a2340; --border: #263152;
+  --text: #e8ecf6; --sub: #9aa6c4; --dim: #6b7699; --mint: #5eead4; --mintbg: #0f3a3a; --ink: #06201d;
+  --danger: #f87171; --dangerbg: #3a1a22; --warn: #fbbf24; --warnbg: #3a2e12; --ok: #4ade80;
+  --jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--jp); font-size: 13px; }
+button { font: inherit; cursor: pointer; border-radius: 10px; border: 1.5px solid var(--sub); background: none; color: var(--text); padding: 0 16px; height: 40px; font-weight: 600; }
+button.primary { background: var(--mint); border-color: var(--mint); color: var(--ink); font-weight: 700; }
+button.danger { border-color: var(--danger); color: var(--danger); }
+button:disabled { opacity: 0.45; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+input[type="text"], input[type="search"] { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; height: 38px; padding: 0 12px; }
+.mono { font-family: var(--mono); }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+.sub { color: var(--sub); }
+.dim { color: var(--dim); }
+.chip { display: inline-block; border-radius: 11px; padding: 3px 9px; font-size: 11px; font-weight: 600; background: var(--panel2); color: var(--sub); }
+.chip.ads, .chip.tracking { background: var(--dangerbg); color: var(--danger); }
+.chip.promo { background: var(--mintbg); color: var(--mint); }
+.chip.protected { background: var(--warnbg); color: var(--warn); }
+.link { background: none; border: none; color: var(--mint); padding: 0; height: auto; font-weight: 600; }
+h1 { font-size: 26px; margin: 0; }
+h1 + p { margin: -6px 0 4px; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
