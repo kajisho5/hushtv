@@ -257,7 +257,7 @@
       <button class:on={lang === "en"} onclick={() => switchLang("en")}>English</button>
       <button class:on={lang === "ja"} onclick={() => switchLang("ja")}>日本語</button>
     </div>
-    <div class="foot">{t("Nothing is uninstalled.")}<br />{t("Every change can be undone.")}<div class="mono dim ver">hushtv v0.2.0-beta.3 · MIT</div></div>
+    <div class="foot">{t("Nothing is uninstalled.")}<br />{t("Every change can be undone.")}<div class="mono dim ver">hushtv v0.2.0-beta.4 · MIT</div></div>
   </aside>
 
   <main>
