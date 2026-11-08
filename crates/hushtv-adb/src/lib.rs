@@ -1,7 +1,7 @@
 //! テレビとの通信。adb_client（Rust 製の ADB）で直接つなぐ。Google の adb は使わない。
 //!
-//! v0.1 で対応するのは、ネットワークデバッグ（5555 番など、暗号化なし）と、すでにペアリング済みの
-//! ワイヤレスデバッグ（暗号化あり）。6 桁コードでのペアリングは次のバージョンで追加する。
+//! ネットワークデバッグ（5555 番など、暗号化なし）と、ワイヤレスデバッグ（暗号化あり）に対応。
+//! ワイヤレスデバッグの 6 桁コードでのペアリングは pair.rs（Google の adb は使わない）。
 
 use adb_client::{ADBDeviceExt, tcp::ADBTcpDevice};
 use hushtv_core::names::{is_package, package_names};
@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 
 pub mod discover;
 pub mod flow;
+pub mod pair;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

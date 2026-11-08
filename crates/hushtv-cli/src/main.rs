@@ -41,6 +41,13 @@ enum Cmd {
         #[arg(long, default_value_t = 4)]
         seconds: u64,
     },
+    /// 6 桁のコードでペアリングする（Android 11 以降の［ワイヤレスデバッグ］→［ペア設定コードによるデバイスのペア設定］）
+    Pair {
+        /// テレビに出ている「IP アドレスとポート」（例 192.168.10.23:37105）
+        address: String,
+        /// テレビに出ている 6 桁のコード
+        code: String,
+    },
     /// 同梱の機種別リストを探す
     Lists { word: Option<String> },
     /// 機種と、近いリストを表示
@@ -276,6 +283,26 @@ fn make_plan(
     Ok((Plan::build(&names, &guarded, &state), state))
 }
 
+fn pair_error(e: &hushtv_adb::pair::PairError) -> String {
+    use hushtv_adb::pair::PairError as P;
+    match e {
+        P::BadCode => tr("コードは 6 桁の数字です", "The code is six digits").into(),
+        P::WrongCode => tr(
+            "コードが違います。テレビに出ている 6 桁を入れ直してください",
+            "Wrong code. Type the six digits shown on the TV again",
+        )
+        .into(),
+        P::Connect(d) => format!(
+            "{}（{d}）",
+            tr(
+                "ペアリング用のポートにつながりません。テレビのペアリングの画面を開いたままにしてください",
+                "Can't reach the pairing port. Keep the pairing screen open on the TV"
+            )
+        ),
+        other => other.to_string(),
+    }
+}
+
 fn main() {
     if let Err(e) = run(Cli::parse()) {
         eprintln!("{} {e:#}", tr("エラー:", "error:"));
@@ -308,6 +335,40 @@ fn run(cli: Cli) -> Result<()> {
                     _ => format!("{}（{}）", tv.address, tr("デバッグ オフ", "debugging off")),
                 };
                 println!("{}  {how}", tv.name.unwrap_or_else(|| "-".into()));
+            }
+        }
+        Cmd::Pair { address, code } => {
+            if !hushtv_adb::pair::valid_code(code.trim()) {
+                anyhow::bail!(tr("コードは 6 桁の数字です", "The code is six digits"));
+            }
+            let addr = hushtv_adb::parse_endpoint(&address)?;
+            if !address.contains(':') {
+                anyhow::bail!(tr(
+                    "ポートも入れてください（テレビの画面の「IP アドレスとポート」、例 192.168.10.23:37105）",
+                    "Add the port too — the \"IP address & port\" on the TV screen, e.g. 192.168.10.23:37105"
+                ));
+            }
+            eprintln!("{}", tr("ペアリングしています…", "Pairing…"));
+            hushtv_adb::pair::pair(addr, &code, &hushtv_adb::default_key_path())
+                .map_err(|e| anyhow::anyhow!(pair_error(&e)))?;
+            println!("{}", tr("ペアリングできました。", "Paired."));
+            // 接続用のポートは別。テレビが知らせている番号を探す
+            let found = hushtv_adb::discover::scan(Duration::from_secs(4));
+            match found
+                .iter()
+                .find(|t| t.address == addr.ip())
+                .and_then(|t| t.tls_port)
+            {
+                Some(port) => {
+                    println!("{} hushtv info {}:{port}", tr("次は：", "Next:"), addr.ip())
+                }
+                None => println!(
+                    "{}",
+                    tr(
+                        "次は：テレビの［ワイヤレスデバッグ］画面の「IP アドレスとポート」（ペアリング用とは別の番号）で hushtv info <住所:ポート>",
+                        "Next: hushtv info <address:port>, using the \"IP address & port\" on the TV's Wireless debugging screen (not the pairing one)"
+                    )
+                ),
             }
         }
         Cmd::Lists { word } => {

@@ -18,3 +18,12 @@ thiserror.workspace = true
 hushtv-card.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+curve25519-dalek = { version = "5.0.0", default-features = false, features = ["alloc", "precomputed-tables"] }
+sha2 = { version = "0.11.1", default-features = false }
+hkdf = { version = "0.13.0", default-features = false }
+aes-gcm = { version = "0.11.1", default-features = false, features = ["aes", "alloc"] }
+subtle = { version = "2.6.1", default-features = false }
+getrandom = { version = "0.4.3", default-features = false }
+base64 = { version = "0.23.1", default-features = false, features = ["alloc"] }
+rcgen = { version = "0.14.10", default-features = false, features = ["pem", "ring"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std"] }

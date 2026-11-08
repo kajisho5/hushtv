@@ -38,6 +38,10 @@ see launcher/FONT-LICENSE-OFL.txt.
 
 https://github.com/cocool97/adb_client — MIT License, Copyright (c) Corentin LIAUD.
 
+## libadb
+
+`crates/hushtv-adb/src/pair.rs` (the SPAKE2 part of 6-digit pairing) follows https://github.com/tarigo/libadb `src/pairing/spake2.rs` — MIT License, Copyright (c) 2026 Igor Tarasov. It was checked line by line against BoringSSL's `crypto/curve25519/spake25519.cc` and against an independent textbook implementation.
+
 ## Inter (font)
 
 `crates/hushtv-card/fonts/` holds a Latin subset of Inter, Copyright 2016-2023 The Inter Project Authors, licensed under the SIL Open Font License 1.1 (full text in `crates/hushtv-card/fonts/OFL.txt`).
