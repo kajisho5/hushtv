@@ -124,6 +124,42 @@ def scoop(version: str, dist: pathlib.Path) -> str | None:
     return json.dumps(manifest, indent=4, ensure_ascii=False) + "\n"
 
 
+def updater(version: str, dist: pathlib.Path) -> str | None:
+    """Tauri の自動アップデートが読む latest.json。署名（.sig）がそろっているものだけ載せる。"""
+    import datetime
+
+    files = {
+        "darwin-aarch64": f"hushtv_{version}_macos-universal.app.tar.gz",
+        "darwin-x86_64": f"hushtv_{version}_macos-universal.app.tar.gz",
+        "linux-x86_64": f"hushtv_{version}_amd64.AppImage",
+        "windows-x86_64": f"hushtv_{version}_x64-setup.exe",
+    }
+    platforms = {}
+    for key, name in files.items():
+        sig = dist / f"{name}.sig"
+        if (dist / name).is_file() and sig.is_file():
+            platforms[key] = {"signature": sig.read_text().strip(), "url": url(version, name)}
+    if not platforms:
+        return None
+    notes_file = pathlib.Path(__file__).resolve().parent.parent / "docs" / "release-notes.md"
+    notes = ""
+    if notes_file.is_file():
+        # 英語の部分だけ（日本語の段落の手前まで）
+        lines = []
+        for line in notes_file.read_text().splitlines():
+            if any(ord(c) > 0x2E7F for c in line) and not line.startswith(("-", "*", "New")):
+                break
+            lines.append(line)
+        notes = "\n".join(lines).strip()
+    manifest = {
+        "version": version,
+        "notes": notes,
+        "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "platforms": platforms,
+    }
+    return json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+
+
 def main() -> int:
     version, dist = sys.argv[1], pathlib.Path(sys.argv[2])
     root = pathlib.Path(__file__).resolve().parent.parent
@@ -131,6 +167,7 @@ def main() -> int:
         root / "Formula" / "hushtv.rb": formula(version, dist),
         root / "Casks" / "hushtv-app.rb": cask(version, dist),
         root / "bucket" / "hushtv.json": scoop(version, dist),
+        root / "updater" / "latest.json": updater(version, dist),
     }
     for path, text in out.items():
         if text is None:

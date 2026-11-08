@@ -292,7 +292,7 @@ hushtv/
 - お知らせを押すと、変更点と［更新して再起動］の確認を出す。勝手には入れ替えない。テレビの作業中（busy）は押せない
 - 使う部品：tauri-plugin-updater 2.14.1、tauri-plugin-process 2.4.0（再起動用）。https://crates.io/crates/tauri-plugin-updater ・ https://crates.io/crates/tauri-plugin-process
 - 更新ファイルは Tauri の署名鍵で署名し、アプリに入れた公開鍵で確かめてから入れる。署名鍵は kajisho5/runway の tauri-updater-key が作って Secrets に入れる（人の目に触れない）
-- 対応：Mac（署名・公証済みの .app を固めたもの）、Windows（-setup.exe）、Linux（AppImage）。deb で入れた人は自動更新の対象外（お知らせだけ出して、Releases を開く）
+- 対応：Mac（署名・公証済みの .app を固めたもの）、Windows（-setup.exe）、Linux（AppImage）。deb で入れた人は自動更新の対象外（お知らせも出さない。Releases から入れ直す）
 - 送る情報：なし（公開ファイルを読むだけ）
 
 ### ホーム画面の手順を 1.1 まで隠す

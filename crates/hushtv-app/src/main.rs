@@ -608,9 +608,73 @@ fn save_card(path: String) -> Result<String, String> {
     Ok(dest.display().to_string())
 }
 
+/// 自動アップデートの公開鍵（kajisho5/runway の tauri-updater-key が作ったもの）。空のうちは更新を確かめない。
+const UPDATER_PUBKEY: &str = include_str!("../updater.pub");
+
+#[derive(Serialize)]
+struct UpdateInfo {
+    version: String,
+    current: String,
+    notes: Option<String>,
+}
+
+fn updater_ready() -> bool {
+    // deb で入れたものは自動では入れ替えられない（AppImage・Mac・Windows だけ）
+    let linux_deb = cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none();
+    !UPDATER_PUBKEY.trim().is_empty() && !linux_deb
+}
+
+/// 新しいバージョンがあるか（公開ファイルを読むだけ。パソコンやテレビの情報は送らない）。
+#[tauri::command]
+async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    if !updater_ready() {
+        return Ok(None);
+    }
+    let found = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(found.map(|u| UpdateInfo {
+        version: u.version,
+        current: u.current_version,
+        notes: u.body,
+    }))
+}
+
+/// ダウンロードして署名を確かめ、入れ替えて再起動する。
+#[tauri::command]
+async fn update_install(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    if !updater_ready() {
+        return Err("updater is not available".into());
+    }
+    let Some(update) = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+    else {
+        return Ok(());
+    };
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())?;
+    app.restart();
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(UPDATER_PUBKEY.trim())
+                .build(),
+        )
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage::<Shared>(Arc::new(Mutex::new(Tv::default())))
         .invoke_handler(tauri::generate_handler![
@@ -626,7 +690,9 @@ fn main() {
             rescue_run,
             restore,
             close_debugging,
-            save_card
+            save_card,
+            update_check,
+            update_install
         ])
         .run(tauri::generate_context!())
         .expect("hushtv を起動できませんでした");

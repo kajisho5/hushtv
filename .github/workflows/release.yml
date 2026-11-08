@@ -6,6 +6,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# 続けて push したとき、同じバージョンのリリースを二重に作らない
+concurrency:
+  group: release
+  cancel-in-progress: true
 jobs:
   version:
     runs-on: ubuntu-latest
@@ -92,12 +96,19 @@ jobs:
       - name: アプリを作る
         shell: bash
         working-directory: crates/hushtv-app
-        run: ../../ui/node_modules/.bin/tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        env:
+          # 自動アップデートの署名鍵（runway の tauri-updater-key が入れる）。無いうちは署名なしで作る
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          extra=()
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then extra=(--config '{"bundle":{"createUpdaterArtifacts":true}}'); fi
+          ../../ui/node_modules/.bin/tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${extra[@]}"
       - name: まとめる
         shell: bash
         run: |
           mkdir -p dist
-          find target/${{ matrix.target }}/release/bundle -maxdepth 2 -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} dist/ \;
+          find target/${{ matrix.target }}/release/bundle -maxdepth 2 -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.sig" \) -exec cp {} dist/ \;
           ls -la dist
       - uses: actions/upload-artifact@v7
         with:
@@ -140,8 +151,44 @@ jobs:
         && lipo -create -output dist/cli/hushtv target/aarch64-apple-darwin/release/hushtv target/x86_64-apple-darwin/release/hushtv
       products: dist/cli/hushtv
     secrets: inherit
+  # Mac の自動アップデート用：署名・公証済みの .app を固めて、更新用の鍵で署名する
+  mac-updater:
+    needs: [version, mac]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: hushtv-notarized
+          path: dmg
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: 固めて署名
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then echo "::notice::更新用の鍵がまだないので省略"; exit 0; fi
+          npm ci --prefix ui
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dmg/*.dmg
+          out="dist/hushtv_${VERSION}_macos-universal.app.tar.gz"
+          tar -czf "$out" -C "$mnt" hushtv.app
+          hdiutil detach "$mnt"
+          ui/node_modules/.bin/tauri signer sign "$out"
+          ls -la dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mac-updater
+          path: dist/*
+          if-no-files-found: ignore
   publish:
-    needs: [version, build, app, mac, mac-cli]
+    needs: [version, build, app, mac, mac-cli, mac-updater]
     # Mac の署名が失敗しても、ほかの OS のリリースは止めない
     if: always() && needs.version.outputs.new == 'true' && needs.build.result == 'success' && needs.app.result == 'success'
     runs-on: ubuntu-latest
@@ -166,16 +213,16 @@ jobs:
           gh release create "$tag" dist/* $pre \
             --title "hushtv ${{ needs.version.outputs.tag }}" \
             --notes-file docs/release-notes.md
-      - name: Homebrew と Scoop の定義を更新
+      - name: Homebrew・Scoop・自動アップデートの定義を更新
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           python3 scripts/packages.py "$VERSION" dist
-          if [ -n "$(git status --porcelain Formula Casks bucket)" ]; then
+          if [ -n "$(git status --porcelain Formula Casks bucket updater)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Formula Casks bucket
-            git commit -m "Homebrew と Scoop を $VERSION に更新"
+            git add Formula Casks bucket updater
+            git commit -m "Homebrew・Scoop・自動アップデートを $VERSION に更新"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
