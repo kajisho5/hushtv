@@ -47,7 +47,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRCMzZGRDcxNzQzRjU1MDAKUldRQVZUOTBjZjAyU3duMUxqdlBPanpaalpmRVBkaXJZLzNsZ1Q4eEVwcnExUGVkdmNja283MTUK",
       "endpoints": [
         "https://raw.githubusercontent.com/kajisho5/hushtv/main/updater/latest.json"
       ]
