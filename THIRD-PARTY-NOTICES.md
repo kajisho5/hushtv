@@ -38,6 +38,10 @@ see launcher/FONT-LICENSE-OFL.txt.
 
 https://github.com/cocool97/adb_client — MIT License, Copyright (c) Corentin LIAUD.
 
+## cleanyourtv launcher (ad-free home screen)
+
+`data/launcher/tvhome.apk` is built by `.github/workflows/launcher.yml` from `launcher/` of https://github.com/Gathin23/cleanyourtv at the commit in `data/UPSTREAM.json`, unchanged, and re-signed with hushtv's key — MIT License, Copyright (c) 2026 Gathin (`data/launcher/LICENSE-cleanyourtv`). Its bundled font (SIL OFL 1.1) and Fluent Emoji icons (MIT) keep their licenses (`data/launcher/FONT-LICENSE-OFL.txt`, `data/launcher/ICONS-LICENSE-FLUENT-EMOJI.txt`).
+
 ## libadb
 
 `crates/hushtv-adb/src/pair.rs` (the SPAKE2 part of 6-digit pairing) follows https://github.com/tarigo/libadb `src/pairing/spake2.rs` — MIT License, Copyright (c) 2026 Igor Tarasov. It was checked line by line against BoringSSL's `crypto/curve25519/spake25519.cc` and against an independent textbook implementation.

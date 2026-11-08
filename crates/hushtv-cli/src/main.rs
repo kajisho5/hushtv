@@ -48,6 +48,30 @@ enum Cmd {
         /// テレビに出ている 6 桁のコード
         code: String,
     },
+    /// 広告のないホーム画面（cleanyourtv の launcher）に切り替える・戻す
+    Home {
+        #[command(subcommand)]
+        action: HomeAction,
+    },
+    /// 何台もまとめて：同じやり方を、テレビごとに一番近いリストで順番に反映する
+    Fleet {
+        /// apply＝片付ける / check＝点検 / fix＝点検して直す / restore＝元に戻す
+        #[arg(value_enum)]
+        job: JobArg,
+        /// テレビの住所（いくつでも）
+        hosts: Vec<String>,
+        /// 住所の一覧ファイル（1 行に 1 台、# 以降はコメント）
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// 止め方：light＝広告と追跡だけ（既定）／ full＝リストの全部
+        #[arg(long, value_enum, default_value_t = PresetArg::Light)]
+        preset: PresetArg,
+        /// 安全モードを使わず、一度に全部止める
+        #[arg(long)]
+        fast: bool,
+        #[arg(long, short)]
+        yes: bool,
+    },
     /// 同梱の機種別リストを探す
     Lists { word: Option<String> },
     /// 機種と、近いリストを表示
@@ -100,6 +124,25 @@ enum Cmd {
     },
 }
 
+#[derive(Subcommand)]
+enum HomeAction {
+    /// 広告のないホームに切り替える（純正ホームは止めるだけ。あとで戻せる）
+    Install {
+        host: String,
+        /// 止める純正ホームのパッケージ名（none で何も止めない。省略すると自動で判断）
+        #[arg(long)]
+        stock: Option<String>,
+        #[arg(long, short)]
+        yes: bool,
+    },
+    /// 純正ホームに戻す
+    Remove {
+        host: String,
+        #[arg(long, short)]
+        yes: bool,
+    },
+}
+
 #[derive(Args, Clone)]
 struct Target {
     /// テレビの住所（例 192.168.10.23 / 192.168.10.23:5555）
@@ -130,6 +173,14 @@ struct Target {
 enum LevelArg {
     Quick,
     All,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+enum JobArg {
+    Apply,
+    Check,
+    Fix,
+    Restore,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -369,6 +420,169 @@ fn run(cli: Cli) -> Result<()> {
                         "Next: hushtv info <address:port>, using the \"IP address & port\" on the TV's Wireless debugging screen (not the pairing one)"
                     )
                 ),
+            }
+        }
+        Cmd::Home { action } => {
+            use hushtv_adb::launcher;
+            let ja = lang() == Lang::Ja;
+            match action {
+                HomeAction::Install { host, stock, yes } => {
+                    if launcher::bundled().is_none() {
+                        bail!(launcher::HomeError::NotBundled.text(ja));
+                    }
+                    let mut dev = connect(&host)?;
+                    if !yes
+                        && !ask(tr(
+                            "広告のないホーム画面に切り替えます。純正ホームは止めるだけで、hushtv home remove で戻せます。続けますか？",
+                            "Switch to the ad-free home screen? The stock home is only switched off; hushtv home remove puts it back.",
+                        ))
+                    {
+                        return Ok(());
+                    }
+                    let r = launcher::install(&mut dev, stock.as_deref())
+                        .map_err(|e| anyhow::anyhow!(e.text(ja)))?;
+                    println!(
+                        "{} {}",
+                        tr("切り替えました。ホーム：", "Done. Home:"),
+                        r.home
+                    );
+                    if let Some(s) = r.stock {
+                        println!(
+                            "{} {s}",
+                            tr("止めた純正ホーム：", "Stock home switched off:")
+                        );
+                    }
+                }
+                HomeAction::Remove { host, yes } => {
+                    let mut dev = connect(&host)?;
+                    if !yes && !ask(tr("純正ホームに戻しますか？", "Put the stock home back?"))
+                    {
+                        return Ok(());
+                    }
+                    let now =
+                        launcher::remove(&mut dev).map_err(|e| anyhow::anyhow!(e.text(ja)))?;
+                    println!("{} {now}", tr("戻しました。ホーム：", "Done. Home:"));
+                }
+            }
+        }
+        Cmd::Fleet {
+            job,
+            hosts,
+            file,
+            preset,
+            fast,
+            yes,
+        } => {
+            use hushtv_adb::fleet::{self, Job};
+            let mut all = hosts;
+            if let Some(f) = &file {
+                let text = std::fs::read_to_string(f).with_context(|| {
+                    format!("{} {}", tr("読めません:", "cannot read"), f.display())
+                })?;
+                for h in fleet::parse_hosts(&text) {
+                    if !all.contains(&h) {
+                        all.push(h);
+                    }
+                }
+            }
+            if all.is_empty() {
+                bail!(tr(
+                    "テレビの住所を 1 つ以上ください（または --file）",
+                    "Give one or more TV addresses (or --file)"
+                ));
+            }
+            let job = match job {
+                JobArg::Apply => Job::Apply,
+                JobArg::Check => Job::Check,
+                JobArg::Fix => Job::Fix,
+                JobArg::Restore => Job::Restore,
+            };
+            if matches!(job, Job::Apply | Job::Fix | Job::Restore)
+                && !yes
+                && !ask(&format!(
+                    "{} {} {}",
+                    all.len(),
+                    tr(
+                        "台のテレビを順番に変えます。続けますか？",
+                        "TVs will be changed one after another. Continue?"
+                    ),
+                    if job == Job::Apply {
+                        tr(
+                            "（1 台ごとに戻す記録を保存します）",
+                            "(a restore point is saved for each)",
+                        )
+                    } else {
+                        ""
+                    }
+                ))
+            {
+                return Ok(());
+            }
+            let opt = flow::ApplyOptions {
+                safe: !fast,
+                batch: 4,
+                share: false,
+                ov: Overrides::default(),
+            };
+            let mut results = Vec::new();
+            for (i, h) in all.iter().enumerate() {
+                eprintln!("[{}/{}] {h}", i + 1, all.len());
+                let r = fleet::run_one(h, job, preset.into(), opt, &mut |m| eprintln!("  {m}"));
+                if let Some(e) = &r.error {
+                    eprintln!("  ! {e}");
+                }
+                results.push(r);
+            }
+            println!();
+            for r in &results {
+                let what = match (&r.error, job) {
+                    (Some(e), _) => format!("{} {e}", tr("飛ばした：", "skipped:")),
+                    (None, Job::Apply) => format!(
+                        "{} {} / {} {}{}",
+                        tr("止めた", "off"),
+                        r.disabled,
+                        tr("守った", "protected"),
+                        r.protected,
+                        if r.problems > 0 {
+                            tr(
+                                "（安全モードで一部を戻した）",
+                                " (safe mode rolled some back)",
+                            )
+                        } else {
+                            ""
+                        }
+                    ),
+                    (None, Job::Check) => format!(
+                        "{} {}{}",
+                        tr("戻ってきた", "came back"),
+                        r.returned,
+                        if r.home_changed {
+                            tr(" / ホームが変わった", " / Home changed")
+                        } else {
+                            ""
+                        }
+                    ),
+                    (None, Job::Fix) => format!(
+                        "{} {} / {} {}",
+                        tr("戻ってきた", "came back"),
+                        r.returned,
+                        tr("止め直した", "switched off again"),
+                        r.disabled
+                    ),
+                    (None, Job::Restore) => format!(
+                        "{} {}",
+                        tr("戻したコマンド", "restore commands"),
+                        r.restored
+                    ),
+                };
+                println!(
+                    "{:<22} {:<22} {what}",
+                    r.host,
+                    r.model.as_deref().unwrap_or("-")
+                );
+            }
+            if results.iter().any(|r| r.error.is_some()) {
+                std::process::exit(1);
             }
         }
         Cmd::Lists { word } => {

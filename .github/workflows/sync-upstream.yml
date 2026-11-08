@@ -32,3 +32,8 @@ jobs:
           git add data
           git commit -m "cleanyourtv の機種別リストを取り込み（$(date +%Y-%m-%d)）"
           git push origin HEAD:main
+  # 取り込んだコミットのホーム画面アプリを作り直す（同じコミットなら何もしない）
+  launcher:
+    needs: sync
+    uses: ./.github/workflows/launcher.yml
+    secrets: inherit

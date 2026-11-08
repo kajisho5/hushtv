@@ -242,3 +242,24 @@ jobs:
             git pull --rebase origin main
             git push origin HEAD:main
           fi
+  # winget（Windows の公式のアプリ一覧）に新しいバージョンを送る。正式版（- のないバージョン）だけ。
+  # WINGET_TOKEN（microsoft/winget-pkgs にプルリクエストを出せる、Shogo さんのトークン）が無ければ何もしない
+  winget:
+    needs: [version, publish]
+    if: needs.publish.result == 'success' && !contains(needs.version.outputs.tag, '-')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: 送る
+        shell: bash
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          if [ -z "$WINGET_TOKEN" ]; then echo "::notice::WINGET_TOKEN が無いので winget には送りません"; exit 0; fi
+          gh release download "v$VERSION" -p "hushtv_${VERSION}_x64-setup.exe" -D dl
+          python scripts/winget.py "$VERSION" "dl/hushtv_${VERSION}_x64-setup.exe" winget
+          curl -fsSL -o wingetcreate.exe https://aka.ms/wingetcreate/latest
+          ./wingetcreate.exe submit --token "$WINGET_TOKEN" --prtitle "New version: kajisho5.hushtv version $VERSION" winget
+

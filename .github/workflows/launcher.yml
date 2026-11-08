@@ -1,0 +1,107 @@
+# 広告のないホーム画面アプリ（cleanyourtv の launcher）を、取り込んだ cleanyourtv と同じコミットから作って
+# hushtv の鍵で署名し、data/launcher/tvhome.apk として main に入れる。アプリとコマンドはこれを同梱する。
+# 鍵は kajisho5/runway の android-signing-key が Secrets に入れる（ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD）。
+name: launcher
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths: [.github/workflows/launcher.yml]
+permissions:
+  contents: write
+concurrency:
+  group: launcher
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - id: up
+        name: 作るコミットを決める
+        run: |
+          commit=$(python3 -c 'import json;print(json.load(open("data/UPSTREAM.json"))["commit"])')
+          built=$(python3 -c 'import json,os;p="data/launcher/LAUNCHER.json";print(json.load(open(p))["commit"] if os.path.exists(p) else "")')
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          if [ "$commit" = "$built" ] && [ "${{ github.event_name }}" != workflow_dispatch ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "このコミットのホーム画面アプリは作成済み"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 鍵があるか
+        if: steps.up.outputs.skip == 'false'
+        id: key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KS" ]; then
+            echo "::warning::署名鍵（ANDROID_KEYSTORE_BASE64）がまだありません。kajisho5/runway の android-signing.txt に kajisho5/hushtv を足すと作られます"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.key.outputs.ok == 'true'
+        with:
+          repository: Gathin23/cleanyourtv
+          ref: ${{ steps.up.outputs.commit }}
+          path: upstream
+      - uses: actions/setup-java@v6
+        if: steps.key.outputs.ok == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        if: steps.key.outputs.ok == 'true'
+      - name: 作る
+        if: steps.key.outputs.ok == 'true'
+        working-directory: upstream/launcher
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          ./gradlew assembleRelease -q --console=plain
+      - name: hushtv の鍵で署名して入れる
+        if: steps.key.outputs.ok == 'true'
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          COMMIT: ${{ steps.up.outputs.commit }}
+        run: |
+          set -euo pipefail
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          ks="$RUNNER_TEMP/release.p12"
+          printf '%s' "$KS" | base64 -d > "$ks"
+          mkdir -p data/launcher
+          src=upstream/launcher/app/build/outputs/apk/release/app-release.apk
+          "$bt/zipalign" -f -p 4 "$src" "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" sign --ks "$ks" --ks-type PKCS12 --ks-key-alias release \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --out data/launcher/tvhome.apk "$RUNNER_TEMP/aligned.apk"
+          rm -f "$ks"
+          "$bt/apksigner" verify --print-certs data/launcher/tvhome.apk | head -3
+          version=$(sed -n "s/^[[:space:]]*versionName[[:space:]]*'\(.*\)'.*/\1/p" upstream/launcher/app/build.gradle | head -n 1)
+          minsdk=$(sed -n 's/^[[:space:]]*minSdk[[:space:]]*\([0-9]*\).*/\1/p' upstream/launcher/app/build.gradle | head -n 1)
+          python3 - "$COMMIT" "$version" "$minsdk" <<'PY'
+          import hashlib, json, sys
+          apk = open("data/launcher/tvhome.apk", "rb").read()
+          json.dump({"repo": "Gathin23/cleanyourtv", "commit": sys.argv[1], "version": sys.argv[2],
+                     "min_sdk": int(sys.argv[3] or 26), "sha256": hashlib.sha256(apk).hexdigest(), "bytes": len(apk)},
+                    open("data/launcher/LAUNCHER.json", "w"), indent=2)
+          PY
+          cp upstream/LICENSE data/launcher/LICENSE-cleanyourtv
+          cp upstream/launcher/FONT-LICENSE-OFL.txt upstream/launcher/ICONS-LICENSE-FLUENT-EMOJI.txt data/launcher/ 2>/dev/null || true
+          cat data/launcher/LAUNCHER.json
+      - name: main に入れる
+        if: steps.key.outputs.ok == 'true'
+        run: |
+          rm -rf upstream
+          if [ -n "$(git status --porcelain data/launcher)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/launcher
+            git commit -m "ホーム画面アプリを cleanyourtv ${{ steps.up.outputs.commit }} から作り直し"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi

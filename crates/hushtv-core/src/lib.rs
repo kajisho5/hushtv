@@ -8,6 +8,7 @@
 
 pub mod category;
 pub mod health;
+pub mod home;
 pub mod list;
 pub mod lists;
 pub mod names;

@@ -14,7 +14,9 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 pub mod discover;
+pub mod fleet;
 pub mod flow;
+pub mod launcher;
 pub mod pair;
 
 #[derive(Debug, thiserror::Error)]
@@ -214,6 +216,12 @@ impl Device {
     }
 
     /// コマンドを順に送る（元に戻すとき）。
+    /// テレビにファイルを送る。
+    pub fn push(&mut self, data: &[u8], path: &str) -> Result<(), String> {
+        let mut r = std::io::Cursor::new(data);
+        self.inner.push(&mut r, &path).map_err(|e| e.to_string())
+    }
+
     pub fn run_all(&mut self, commands: &[String]) -> Vec<(String, String)> {
         commands
             .iter()
