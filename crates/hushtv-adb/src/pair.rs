@@ -423,7 +423,9 @@ pub mod spake2 {
     }
 
     fn point(b: &[u8; 32]) -> EdwardsPoint {
-        CompressedEdwardsY(*b).decompress().expect("M と N は曲線上の点")
+        CompressedEdwardsY(*b)
+            .decompress()
+            .expect("M と N は曲線上の点")
     }
 
     fn absorb(h: &mut Sha512, data: &[u8]) {

@@ -40,10 +40,11 @@ async function demo(cmd: string, args: Record<string, unknown>): Promise<unknown
   switch (cmd) {
     case "ui_lang": return navigator.language.startsWith("ja") ? "ja" : "en";
     case "scan": return [
-      { address: "192.168.10.23", name: "Living room TV", tls_port: 37021, pair_port: null, legacy_open: true },
+      { address: "192.168.10.23", name: "Living room TV", tls_port: 37021, pair_port: 37145, legacy_open: false },
       { address: "192.168.10.41", name: "Bedroom TV", tls_port: null, pair_port: null, legacy_open: true },
       { address: "192.168.10.57", name: "Study projector", tls_port: null, pair_port: null, legacy_open: false },
     ] satisfies Found[];
+    case "pair_connect": return demo("connect", { host: `${args.address}:${args.tlsPort ?? 37021}` });
     case "connect": return { host: String(args.host), model: "ACME 55U8", android: "12", lists: [{ id: "acme-55u8", title: "ACME 55U8 (fictional)", score: 0.92 }, { id: "acme-43u6", title: "ACME 43U6 (fictional)", score: 0.71 }], has_applied: false } satisfies Connected;
     case "make_plan": return { list_id: String(args.listId), list_title: "ACME 55U8 (fictional)", header: "", rows: demoRows, notes: [] } satisfies PlanView;
     case "apply": return { disabled: (args.selected as string[]).length, still_on: [], protected: 1, problems: 0, batches: 2, stopped: null, rolled_back: [], by_category: [["Ads", 1], ["Tracking", 2]], card_path: "/demo/hushtv.png", card_png: null, record_path: "~/.cleanyourtv/recovery-demo.json" } satisfies ApplyView;

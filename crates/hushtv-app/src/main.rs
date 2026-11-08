@@ -107,33 +107,88 @@ struct Connected {
     has_applied: bool,
 }
 
+/// つないで、機種と近いリストを読む（connect と pair_connect で共通）。
+fn open_tv(tv: &Shared, host: String) -> Result<Connected, String> {
+    let mut dev = Device::connect(&host, &default_key_path()).map_err(|e| e.to_string())?;
+    let model = dev.model();
+    let android = dev.android_version();
+    let (installed, _) = dev.packages().map_err(|e| e.to_string())?;
+    let all = lists::all();
+    let lists = plan::rank_lists(&installed, model.as_deref(), &all)
+        .into_iter()
+        .take(8)
+        .map(|(score, _, l)| Ranked {
+            id: l.id.clone(),
+            title: l.title(),
+            score: score.min(1.0),
+        })
+        .collect();
+    let has_applied = flow::load_applied(&host).is_some();
+    tv.lock().map_err(|_| "busy")?.dev = Some(dev);
+    Ok(Connected {
+        host,
+        model,
+        android,
+        lists,
+        has_applied,
+    })
+}
+
 #[tauri::command]
 async fn connect(tv: State<'_, Shared>, host: String) -> Result<Connected, String> {
     let tv = tv.inner().clone();
+    blocking(move || open_tv(&tv, host)).await
+}
+
+/// 6 桁のコードでペアリングしてから、接続用のポートにつなぐ。
+#[tauri::command]
+async fn pair_connect(
+    tv: State<'_, Shared>,
+    address: String,
+    pair_port: u16,
+    code: String,
+    tls_port: Option<u16>,
+    lang: Option<String>,
+) -> Result<Connected, String> {
+    use hushtv_adb::pair::PairError as P;
+    let ja = pick(&lang) == Lang::Ja;
+    let say = move |j: &str, e: &str| if ja { j.to_string() } else { e.to_string() };
+    let tv = tv.inner().clone();
     blocking(move || {
-        let mut dev = Device::connect(&host, &default_key_path()).map_err(|e| e.to_string())?;
-        let model = dev.model();
-        let android = dev.android_version();
-        let (installed, _) = dev.packages().map_err(|e| e.to_string())?;
-        let all = lists::all();
-        let lists = plan::rank_lists(&installed, model.as_deref(), &all)
-            .into_iter()
-            .take(8)
-            .map(|(score, _, l)| Ranked {
-                id: l.id.clone(),
-                title: l.title(),
-                score: score.min(1.0),
-            })
-            .collect();
-        let has_applied = flow::load_applied(&host).is_some();
-        tv.lock().map_err(|_| "busy")?.dev = Some(dev);
-        Ok(Connected {
-            host,
-            model,
-            android,
-            lists,
-            has_applied,
-        })
+        let ip: std::net::IpAddr = address
+            .trim()
+            .parse()
+            .map_err(|_| say("IP アドレスが読めません", "Can't read the IP address"))?;
+        hushtv_adb::pair::pair((ip, pair_port).into(), &code, &default_key_path()).map_err(|e| match e {
+            P::BadCode => say("コードは 6 桁の数字です", "The code is six digits"),
+            P::WrongCode => say(
+                "コードが違います。テレビに出ている 6 桁を入れ直してください",
+                "Wrong code. Type the six digits shown on the TV again",
+            ),
+            P::Connect(d) => format!(
+                "{}（{d}）",
+                say(
+                    "ペアリング用のポートにつながりません。テレビのペアリングの画面を開いたままにしてください",
+                    "Can't reach the pairing port. Keep the pairing screen open on the TV"
+                )
+            ),
+            other => other.to_string(),
+        })?;
+        // 接続用のポートはペアリング用とは別。分からなければテレビが知らせている番号を探す
+        let port = tls_port.or_else(|| {
+            hushtv_adb::discover::scan(Duration::from_secs(4))
+                .into_iter()
+                .find(|t| t.address == ip)
+                .and_then(|t| t.tls_port)
+        });
+        let Some(port) = port else {
+            return Err(say(
+                "ペアリングできました。テレビの［ワイヤレスデバッグ］画面の「IP アドレスとポート」を、下の「見つからないとき」に入れてつないでください",
+                "Paired. Now type the \"IP address & port\" from the TV's Wireless debugging screen into \"Not listed?\" and connect",
+            ));
+        };
+        let host = if ip.is_ipv6() { format!("[{ip}]:{port}") } else { format!("{ip}:{port}") };
+        open_tv(&tv, host)
     })
     .await
 }
@@ -562,6 +617,7 @@ fn main() {
             ui_lang,
             scan,
             connect,
+            pair_connect,
             make_plan,
             apply,
             check,

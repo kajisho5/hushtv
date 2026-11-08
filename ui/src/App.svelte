@@ -29,6 +29,13 @@
   let scanning = $state(false);
   let manual = $state("");
   let tv = $state<Connected | null>(null);
+  // ペアリング（6 桁コード）
+  let pairTv = $state<Found | null>(null);
+  let pairIp = $state("");
+  let pairPort = $state("");
+  let digits = $state(["", "", "", "", "", ""]);
+  let boxes: HTMLInputElement[] = $state([]);
+  const code = $derived(digits.join(""));
 
   // 片付ける
   let plan = $state<PlanView | null>(null);
@@ -102,6 +109,47 @@
 
   async function connect(host: string) {
     const c = await run(t("Connecting… Check the TV for \"Allow USB debugging?\""), () => call<Connected>("connect", { host }));
+    if (!c) return;
+    tv = c;
+    done = new Set([...done, "connect"]);
+    if (c.lists[0]) await loadPlan(c.lists[0].id);
+    view = "clean";
+  }
+
+  function pickTv(f: Found) {
+    if (f.legacy_open) return connect(`${f.address}:5555`);
+    pairTv = f;
+    pairIp = f.address;
+    pairPort = f.pair_port ? String(f.pair_port) : "";
+    digits = ["", "", "", "", "", ""];
+    boxes[0]?.focus();
+  }
+
+  function typeDigit(i: number, e: Event) {
+    const el = e.target as HTMLInputElement;
+    const v = el.value.replace(/\D/g, "");
+    if (v.length > 1) {
+      // 6 桁をまとめて貼り付けたとき
+      const all = v.slice(0, 6).split("");
+      digits = [0, 1, 2, 3, 4, 5].map((k) => all[k] ?? "");
+      boxes[Math.min(all.length, 5)]?.focus();
+      return;
+    }
+    digits[i] = v;
+    el.value = v;
+    if (v && i < 5) boxes[i + 1]?.focus();
+  }
+
+  function keyDigit(i: number, e: KeyboardEvent) {
+    if (e.key === "Backspace" && !digits[i] && i > 0) boxes[i - 1]?.focus();
+    if (e.key === "Enter" && code.length === 6) pairConnect();
+  }
+
+  async function pairConnect() {
+    const port = Number(pairPort);
+    if (!pairIp || !port || code.length !== 6) return;
+    const c = await run(t("Pairing…"), () =>
+      call<Connected>("pair_connect", { address: pairIp.trim(), pairPort: port, code, tlsPort: pairTv?.address === pairIp.trim() ? pairTv?.tls_port ?? null : null, lang }));
     if (!c) return;
     tv = c;
     done = new Set([...done, "connect"]);
@@ -273,7 +321,7 @@
           <div class="row"><h2>{t("TVs found")} <span class="sub">{found.length}</span></h2><button onclick={scan} disabled={scanning}>{scanning ? t("Searching…") : t("Rescan")}</button></div>
           {#if found.length === 0}<p class="dim">{t("Nothing found yet.")}</p>{/if}
           {#each found as f}
-            <button class="tvrow" disabled={!f.legacy_open && !!busy} onclick={() => connect(f.legacy_open ? `${f.address}:5555` : `${f.address}:${f.tls_port}`)}>
+            <button class="tvrow" class:sel={pairTv?.address === f.address} disabled={!!busy || (!f.legacy_open && !f.tls_port && !f.pair_port)} onclick={() => pickTv(f)}>
               <span class="tvname">{f.name ?? f.address}</span>
               <span class="mono dim">{f.address}</span>
               <span class="chip">{f.legacy_open ? t("Port 5555") : f.tls_port ? t("Wireless debugging") : t("Debugging off")}</span>
@@ -286,9 +334,30 @@
             <button onclick={() => connect(manual)} disabled={!manual || !!busy}>{t("Connect")}</button>
           </div>
         </section>
-        <section class="panel">
+        <section class="panel pair">
           <h2>{t("Pair")}</h2>
-          <p class="sub">{t("Pairing with a 6-digit code comes in the next version. For now, turn on network debugging (port 5555) on the TV.")}</p>
+          {#if pairTv}
+            <div class="mint b">{pairTv.name ?? pairTv.address}</div>
+          {:else}
+            <input type="text" class="mono" placeholder="192.168.10.23" aria-label={t("TV IP address")} bind:value={pairIp} />
+          {/if}
+          <p class="sub">{t("On the TV: Wireless debugging → Pair device with pairing code. Type the six digits it shows.")}</p>
+          <div class="digits">
+            {#each digits as d, i}
+              <input bind:this={boxes[i]} value={d} inputmode="numeric" autocomplete="one-time-code" maxlength={i === 0 ? 6 : 1}
+                aria-label={t("Digit {n}", { n: i + 1 })} oninput={(e) => typeDigit(i, e)} onkeydown={(e) => keyDigit(i, e)} />
+            {/each}
+          </div>
+          <label class="sub small" for="pairport">{t("Pairing port")}</label>
+          <div class="portrow">
+            <input id="pairport" type="text" class="mono" inputmode="numeric" placeholder="37145" bind:value={pairPort} />
+            {#if pairTv?.pair_port && String(pairTv.pair_port) === pairPort}<span class="dim small">{t("Filled in automatically")}</span>{/if}
+          </div>
+          <button class="primary wide" onclick={pairConnect} disabled={!!busy || code.length !== 6 || !pairIp || !Number(pairPort)}>{t("Pair and connect")}</button>
+          <p class="sub small">{t("Google's adb is not used.")}<br />{t("The key is kept on this computer only.")}</p>
+          {#if pairTv?.tls_port}
+            <button class="link" onclick={() => connect(`${pairTv!.address}:${pairTv!.tls_port}`)} disabled={!!busy}>{t("Already paired? Connect")}</button>
+          {/if}
         </section>
       </div>
       <section class="panel">
@@ -486,6 +555,15 @@
   .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .tvrow { display: grid; grid-template-columns: 1fr auto auto auto; gap: 12px; align-items: center; width: 100%; height: 56px; margin-bottom: 8px; border-color: var(--border); text-align: left; }
   .tvrow:hover { border-color: var(--mint); }
+  .tvrow.sel { border-color: var(--mint); background: var(--panel2); }
+  .pair { display: flex; flex-direction: column; gap: 10px; }
+  .pair .b { font-weight: 600; font-size: 12px; }
+  .digits { display: flex; gap: 8px; }
+  .digits input { width: 44px; height: 56px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; text-align: center; font-family: var(--mono); font-size: 24px; font-weight: 700; padding: 0; }
+  .digits input:focus { border-color: var(--mint); outline: 1px solid var(--mint); }
+  .portrow { display: flex; gap: 10px; align-items: center; }
+  .portrow input { flex: 1; }
+  .link { border: none; background: none; color: var(--mint); font-weight: 600; text-align: left; padding: 0; height: auto; }
   .tvname { font-weight: 700; font-size: 15px; }
   .manual { display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 8px; }
   .manual input { flex: 1; }
