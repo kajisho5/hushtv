@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export type Found = { address: string; name: string | null; tls_port: number | null; pair_port: number | null; legacy_open: boolean };
+export type HomeStatus = { bundled: boolean; size_kb: number; installed: boolean; home: string | null; sdk: number | null; switched: boolean; is_ours: boolean };
 export type UpdateInfo = { version: string; current: string; notes: string | null };
 export type Ranked = { id: string; title: string; score: number };
 export type Connected = { host: string; model: string | null; android: string | null; lists: Ranked[]; has_applied: boolean };
@@ -49,6 +50,9 @@ async function demo(cmd: string, args: Record<string, unknown>): Promise<unknown
       ? { version: "1.0.1", current: "1.0.0", notes: "New in 1.0.1:\n- 12 new model lists\n- Check no longer misses apps that came back\n- Clearer English wording\n---ja---\n1.0.1 の変更：\n- 新しい機種のリストを 12 件追加\n- 点検で、戻ってきたアプリの見落としを修正\n- 英語の言い回しを直した" } satisfies UpdateInfo
       : null;
     case "update_install": return null;
+    case "home_status": return { bundled: true, size_kb: 572, installed: false, home: "com.example.stockhome/.Main", sdk: 31, switched: false, is_ours: false } satisfies HomeStatus;
+    case "home_install": return "com.gathin.tvhome/.MainActivity";
+    case "home_remove": return "com.example.stockhome/.Main";
     case "pair_connect": return demo("connect", { host: `${args.address}:${args.tlsPort ?? 37021}` });
     case "connect": return { host: String(args.host), model: "ACME 55U8", android: "12", lists: [{ id: "acme-55u8", title: "ACME 55U8 (fictional)", score: 0.92 }, { id: "acme-43u6", title: "ACME 43U6 (fictional)", score: 0.71 }], has_applied: false } satisfies Connected;
     case "make_plan": return { list_id: String(args.listId), list_title: "ACME 55U8 (fictional)", header: "", rows: demoRows, notes: [] } satisfies PlanView;

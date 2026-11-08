@@ -83,6 +83,7 @@ STEPS = [("つなぐ", "テレビを見つけて接続"), ("片付ける", "不�
 
 
 STEPS_FULL = STEPS
+FLEET = None  # 何台もまとめて のボタンを出すか（1.0 の画面案）
 UPDATE = None  # 更新のお知らせ（例 "0.3.0"）。None なら出さない
 VERSION = "hushtv v0.1.0 · MIT"
 
@@ -122,6 +123,14 @@ def sidebar(active, done):
                  f'<path d="M34 {uy+17}v9M30 {uy+22}l4 4 4-4" stroke="{C["ink"]}" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')
         o.append(t(52, uy + 26, "新しいバージョン " + UPDATE, 13, C["text"], 700))
         o.append(t(52, uy + 46, "更新する →", 12, C["mint"], 700))
+    # 何台もまとめて（1.0 から）
+    if FLEET is not None:
+        on = active == -2
+        fy = H - 264
+        o.append(r(16, fy, 228, 44, C["panel2"] if on else C["side"], rx=10, stroke=C["mint"] if on else C["border"]))
+        for k in range(3):
+            o.append(f'<rect x="{30 + k*7}" y="{fy+14+k*3}" width="12" height="9" rx="2" fill="none" stroke="{C["mint"]}" stroke-width="1.4"/>')
+        o.append(t(64, fy + 28, "何台もまとめて", 13, C["text"] if on else C["sub"], 700))
     # テレビを直す
     rescue_on = active == -1
     o.append(r(16, H - 214, 228, 44, C["panel2"] if rescue_on else C["side"], rx=10, stroke=C["warn"] if rescue_on else C["border"]))
@@ -598,9 +607,81 @@ def screen_update_dialog():
     (OUT / f"8-update-dialog{'' if LANG == 'ja' else '-' + LANG}.svg").write_text(svg, encoding="utf-8")
 
 
+# ---------- 9. 何台もまとめて（1.0） ----------
+def screen_fleet():
+    g = globals()
+    g["FLEET"], g["VERSION"] = True, "hushtv v1.0.0 · MIT"
+    try:
+        o = [header("何台もまとめて", "同じやり方を、テレビごとに一番近いリストで順番に反映します。1 台ずつ戻す記録を保存します。")]
+        # 左：テレビの一覧
+        o.append(r(300, 126, 560, 470, C["panel"], rx=14, stroke=C["border"]))
+        o.append(t(324, 158, "テレビ", 16, C["text"], 700))
+        o.append(t(394, 158, "4 台中 3 台を選択", 12, C["sub"]))
+        o.append(button(748, 140, 92, "再検索", "secondary", h=32, size=12))
+        rows = [("リビングのテレビ", "192.168.10.23", "ACME 55U8", True, "done", "止めた 18 · 守った 3"),
+                ("寝室のテレビ", "192.168.10.41", "Nimbus TV Box", True, "run", "安全モード 3/5 組目"),
+                ("会議室のテレビ", "192.168.10.62", "ACME 43U6", True, "wait", "順番待ち"),
+                ("書斎のプロジェクター", "192.168.10.57", "Lumen P2", False, "off", "デバッグ オフ（選べません）")]
+        y = 176
+        for name, ip, model, sel, st, msg in rows:
+            dim = st == "off"
+            o.append(r(316, y, 528, 64, C["panel2"] if st == "run" else C["panel"], rx=12, stroke=C["mint"] if st == "run" else C["border"]))
+            if dim:
+                o.append(r(334, y + 23, 18, 18, "none", rx=4, stroke=C["border"]))
+            else:
+                o.append(check(334, y + 23, on=sel))
+            o.append(t(366, y + 28, name, 14, C["dim"] if dim else C["text"], 700))
+            o.append(t(366, y + 48, f"{model} · {ip}", 11, C["dim"], mono=False))
+            col = {"done": C["ok"], "run": C["mint"], "wait": C["sub"], "off": C["dim"]}[st]
+            if st == "done":
+                o.append(f'<circle cx="{824 - text_w(msg, 12) - 14}" cy="{y+32}" r="7" fill="{C["ok"]}"/>'
+                         f'<path d="M{824 - text_w(msg, 12) - 18} {y+32}l3 3 5-6" stroke="{C["ink"]}" stroke-width="1.8" fill="none" stroke-linecap="round"/>')
+            elif st == "run":
+                x0 = 824 - text_w(msg, 12) - 14
+                o.append(f'<circle cx="{x0}" cy="{y+32}" r="7" fill="none" stroke="{C["mint"]}" stroke-width="2" stroke-dasharray="22 8"/>')
+            o.append(t(824, y + 36, msg, 12, col, 600 if st in ("done", "run") else 400, "end"))
+            y += 74
+        o.append(f'<line x1="316" y1="478" x2="844" y2="478" stroke="{C["border"]}"/>')
+        o.append(t(324, 504, "一覧にないテレビ", 13, C["sub"], 600))
+        o.append(r(324, 516, 400, 38, C["bg"], rx=8, stroke=C["border"]))
+        o.append(t(338, 540, "例 192.168.10.80:5555（複数はカンマ区切り）", 13, C["dim"], mono=False))
+        o.append(button(736, 516, 104, "追加", "secondary", h=38, size=13))
+        o.append(t(324, 580, "ワイヤレスデバッグのテレビは、先に「つなぐ」で 1 台ずつペアリングしておきます。", 12, C["dim"]))
+        # 右：やること
+        o.append(r(880, 126, 360, 470, C["panel"], rx=14, stroke=C["border"]))
+        o.append(t(904, 158, "やること", 16, C["text"], 700))
+        jobs = [("片付ける", "戻す記録を保存してから止める", True), ("点検", "ファーム更新のあとのずれを数える", False),
+                ("点検して直す", "戻ってきたアプリを止め直す", False), ("元に戻す", "記録どおりに戻す", False)]
+        jy = 176
+        for title, sub, on in jobs:
+            o.append(r(904, jy, 312, 52, C["panel2"] if on else C["panel"], rx=10, stroke=C["mint"] if on else C["border"]))
+            o.append(f'<circle cx="926" cy="{jy+26}" r="8" fill="none" stroke="{C["mint"] if on else C["dim"]}" stroke-width="1.6"/>')
+            if on:
+                o.append(f'<circle cx="926" cy="{jy+26}" r="4" fill="{C["mint"]}"/>')
+            o.append(t(944, jy + 22, title, 14, C["text"], 700))
+            o.append(t(944, jy + 40, sub, 11, C["sub"]))
+            jy += 60
+        o.append(t(904, 436, "止め方", 12, C["sub"]))
+        o.append(r(904, 446, 312, 36, C["panel"], rx=10, stroke=C["border"]))
+        o.append(r(908, 450, 150, 28, C["mintbg"], rx=7, stroke=C["mint"]) + t(983, 469, "軽め（広告と追跡）", 12, C["mint"], 700, "middle"))
+        o.append(t(1137, 469, "全部", 12, C["sub"], 600, "middle"))
+        o.append(check(904, 498, on=True) + t(932, 512, "安全モード（4 個ずつ確かめる）", 13, C["text"]))
+        o.append(button(904, 534, 312, "3 台に反映する"))
+        # 下：結果のまとめ
+        o.append(r(300, 612, 940, 92, C["panel"], rx=14, stroke=C["border"]))
+        o.append(t(324, 644, "進み具合", 15, C["text"], 700))
+        o.append(r(324, 660, 640, 10, C["panel2"], rx=5) + r(324, 660, 300, 10, C["mint"], rx=5))
+        o.append(t(980, 670, "1 / 3 台 完了", 12, C["sub"]))
+        o.append(t(324, 692, "つながらないテレビは飛ばして次へ進みます。終わったら台ごとの結果を表で出します。", 12, C["sub"]))
+        page("9-fleet", -2, {0, 1}, "".join(o))
+    finally:
+        g["FLEET"], g["VERSION"] = None, "hushtv v0.1.0 · MIT"
+
+
 def build_all():
     screen_connect(); screen_clean(); screen_home(); screen_check(); screen_finish(); screen_rescue()
     with_update(screen_update_card); with_update(screen_update_dialog)
+    screen_fleet()
 
 
 if __name__ == "__main__":

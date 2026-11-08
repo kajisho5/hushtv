@@ -3,13 +3,14 @@
   import { t, setLang, type Lang } from "./lib/i18n";
   import {
     call, inTauri, onProgress, openUrl, reveal, copyPng,
-    type Found, type Connected, type UpdateInfo, type PlanView, type ApplyView, type DriftView, type RescueView, type ProblemView, type Progress,
+    type Found, type Connected, type UpdateInfo, type HomeStatus, type PlanView, type ApplyView, type DriftView, type RescueView, type ProblemView, type Progress,
   } from "./lib/api";
 
-  type View = "connect" | "clean" | "check" | "finish" | "rescue";
+  type View = "connect" | "clean" | "home" | "check" | "finish" | "rescue";
   const steps: { id: View; title: string; sub: string }[] = [
     { id: "connect", title: "Connect", sub: "Find your TV" },
     { id: "clean", title: "Clean up", sub: "Switch off the bloat" },
+    { id: "home", title: "Home screen", sub: "An ad-free home" },
     { id: "check", title: "Check", sub: "Fix it after updates" },
     { id: "finish", title: "Finish", sub: "Close debugging" },
   ];
@@ -54,6 +55,28 @@
   let after = $state<ProblemView[] | null>(null);
   let closed = $state<boolean | null>(null);
   let notice = $state("");
+
+  // ホーム画面
+  let home = $state<HomeStatus | null>(null);
+
+  async function loadHome() {
+    home = (await run(t("Working…"), () => call<HomeStatus>("home_status"))) ?? home;
+  }
+
+  async function installHome() {
+    const h = await run(t("Installing the home screen… Watch the TV."), () => call<string>("home_install", { lang }));
+    if (h === undefined) return;
+    notice = t("Done. Press Home on the remote to see it.");
+    done = new Set([...done, "home"]);
+    await loadHome();
+  }
+
+  async function removeHome() {
+    const h = await run(t("Working…"), () => call<string>("home_remove", { lang }));
+    if (h === undefined) return;
+    notice = t("The stock home is back.");
+    await loadHome();
+  }
 
   // 自動アップデート
   let update = $state<UpdateInfo | null>(null);
@@ -227,8 +250,7 @@
     result = r;
     done = new Set([...done, "clean"]);
     addLog(`${t("Switched off")}: ${r.disabled}`);
-    view = "check";
-    loadDrift();
+    go("home");
   }
 
   async function loadDrift() {
@@ -293,6 +315,7 @@
     view = v;
     if (v === "check") loadDrift();
     if (v === "rescue" && tv) diagnose();
+    if (v === "home" && (tv || !inTauri)) loadHome();
   }
 
   const stateLabel = (s: string) => (s === "on" ? t("On") : s === "off" ? t("Off") : t("Absent"));
@@ -463,6 +486,39 @@
       </div>
     {/if}
 
+    {#if view === "home"}
+      <h1>{t("An ad-free home screen")}</h1>
+      <p class="sub">{t("Installs cleanyourtv's home screen app ({kb} KB) and makes the Home button open it.", { kb: home?.size_kb || "–" })}<br />{t("If Home doesn't switch, the stock home is put back automatically.")}</p>
+      <div class="grid2">
+        <div>
+          <div class="tvmock" aria-hidden="true">
+            <div class="tvtop"><div><b>{t("Good evening")}</b><span class="chip mint">{t("No ads or promo rows")}</span></div><div class="clock mono">21:08</div></div>
+            <div class="tiles"><span class="t1">{t("Video A")}</span><span class="t2">{t("Video B")}</span><span class="t3">{t("Music")}</span><span class="t4">{t("Photos")}</span><span class="t5">{t("Inputs")}</span></div>
+            <div class="small sub">{t("All apps")}</div>
+            <div class="apps">{#each [1, 2, 3, 4, 5, 6] as _}<span></span>{/each}</div>
+          </div>
+          <p class="dim small center">{t("Sample (the real app icons show on the TV)")}</p>
+        </div>
+        <section class="panel status">
+          <h2>{t("Right now")}</h2>
+          <div><span class="sub small">{t("Home screen app")}</span><b>{home ? (home.is_ours ? t("Installed, and it's Home") : home.installed ? t("Installed") : t("Not installed")) : "–"}</b></div>
+          <div><span class="sub small">{t("Current Home")}</span><b class="mono">{home?.home ?? "–"}</b></div>
+          <div><span class="sub small">{t("Android needed")}</span><b class={home?.sdk && home.sdk < 26 ? "danger" : "okc"}>{t("8.0 or newer")}{home?.sdk ? (home.sdk >= 26 ? ` ✓ (${home.sdk})` : ` ✗ (${home.sdk})`) : ""}</b></div>
+          <div><span class="sub small">{t("Where the app comes from")}</span><b>cleanyourtv (MIT)</b></div>
+          {#if home && !home.bundled}<p class="warn small">{t("This build has no home screen app inside. Use the app from Releases.")}</p>{/if}
+          <button class="primary wide" onclick={installHome} disabled={!!busy || !home || !home.bundled || home.is_ours || (!!home.sdk && home.sdk < 26)}>{home?.is_ours ? t("It's your Home now ✓") : t("Install and make it Home")}</button>
+        </section>
+      </div>
+      <section class="panel">
+        <h2>{t("How it goes")}</h2>
+        <div class="flow">
+          {#each [["Send the app", "{kb} KB"], ["Install", "An existing copy is kept"], ["Make it Home", "The old Home is recorded"], ["Check with Home", "Look at the TV"], ["Undo if it fails", "Rolled back automatically"]] as [a, b], i}
+            <div><span class="fnum" class:last={i === 4}>{i + 1}</span><b>{t(a)}</b><span class="sub small">{t(b, { kb: home?.size_kb || "–" })}</span></div>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
     {#if view === "check"}
       <h1>{t("Check after an update")}</h1>
       <p class="sub">{t("Compares your TV with your last cleanup.")}</p>
@@ -540,6 +596,11 @@
       {#if view === "clean"}
         <button class="primary" onclick={apply} disabled={!picked.size || !!busy}>{t("Save restore point and apply ({n})", { n: picked.size })}</button>
         <label class="toggle"><input type="checkbox" bind:checked={safe} /> <span><b>{t("Safe mode")}</b><br /><span class="sub small">{t("{n} at a time, checked", { n: batch })}</span></span></label>
+        <button class="link" onclick={() => go("home")}>{t("Next: {s}", { s: t("Home screen") })} →</button>
+      {:else if view === "home"}
+        <button class="link sub" onclick={() => go("clean")}>← {t("Back to Clean up")}</button>
+        <button onclick={removeHome} disabled={!!busy || !home?.switched}>{t("Put the stock home back")}</button>
+        <span class="dim small">{t("Reordering and themes come in a later version")}</span>
         <button class="link" onclick={() => go("check")}>{t("Next: {s}", { s: t("Check") })} →</button>
       {:else if view === "check"}
         <button onclick={loadDrift} disabled={!!busy}>{t("Check again")}</button>
@@ -576,6 +637,21 @@
   .st { display: block; font-size: 15px; font-weight: 600; }
   .ss { display: block; font-size: 11px; color: var(--dim); font-weight: 400; }
   .spacer { flex: 1; }
+  .tvmock { background: linear-gradient(160deg, #1d2a4d, #0e1630); border: 10px solid #05070d; border-radius: 14px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; aspect-ratio: 16 / 9; }
+  .tvtop { display: flex; justify-content: space-between; }
+  .tvtop b { display: block; font-size: 20px; margin-bottom: 8px; }
+  .tvmock .chip { background: var(--mintbg); color: var(--mint); font-size: 11px; padding: 3px 10px; border-radius: 11px; }
+  .clock { font-size: 30px; }
+  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: auto; }
+  .tiles span { height: 58px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .t1 { background: #2c4a7a; outline: 2px solid var(--mint); } .t2 { background: #5a3a7a; } .t3 { background: #2f6a55; } .t4 { background: #7a5a2f; } .t5 { background: #3a4a6a; }
+  .apps { display: flex; gap: 10px; } .apps span { width: 48px; height: 20px; border-radius: 4px; background: #2a3658; }
+  .status { display: flex; flex-direction: column; gap: 12px; }
+  .status div { display: flex; flex-direction: column; gap: 2px; }
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .flow div { display: flex; flex-direction: column; gap: 6px; }
+  .fnum { width: 30px; height: 30px; border-radius: 50%; background: var(--mintbg); color: var(--mint); display: grid; place-items: center; font-weight: 700; }
+  .fnum.last { background: var(--warnbg); color: var(--warn); }
   .updatecard { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--mintbg); border: 1px solid var(--mint); border-radius: 10px; padding: 10px 12px; height: auto; color: var(--text); }
   .updatecard b { display: block; font-size: 13px; }
   .uicon { width: 20px; height: 20px; border-radius: 50%; background: var(--mint); color: var(--ink); display: grid; place-items: center; font-weight: 800; font-size: 13px; flex: none; }

@@ -608,6 +608,71 @@ fn save_card(path: String) -> Result<String, String> {
     Ok(dest.display().to_string())
 }
 
+#[derive(Serialize)]
+struct HomeStatus {
+    /// 同梱のホーム画面アプリがある（CI のビルド）
+    bundled: bool,
+    /// アプリの大きさ（KB）
+    size_kb: usize,
+    /// テレビに入っているか
+    installed: bool,
+    /// 今のホーム
+    home: Option<String>,
+    /// Android の SDK
+    sdk: Option<u32>,
+    /// hushtv が切り替えた記録があるか（元に戻せるか）
+    switched: bool,
+    is_ours: bool,
+}
+
+#[tauri::command]
+async fn home_status(tv: State<'_, Shared>) -> Result<HomeStatus, String> {
+    let tv = tv.inner().clone();
+    blocking(move || {
+        with_dev(&tv, |dev| {
+            use hushtv_adb::launcher;
+            let answer = dev.shell(hushtv_core::safety::HOME_QUERY).unwrap_or_default();
+            let home = hushtv_core::safety::resolved_home(&answer);
+            Ok(HomeStatus {
+                bundled: launcher::bundled().is_some(),
+                size_kb: launcher::bundled().map(|b| b.len() / 1024).unwrap_or(0),
+                installed: dev
+                    .shell("pm path com.gathin.tvhome")
+                    .unwrap_or_default()
+                    .contains("package:"),
+                is_ours: hushtv_core::home::is_ours(&answer),
+                home,
+                sdk: dev
+                    .shell("getprop ro.build.version.sdk")
+                    .and_then(|s| s.trim().parse().ok()),
+                switched: launcher::load_record(&dev.host).is_some(),
+            })
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+async fn home_install(tv: State<'_, Shared>, lang: Option<String>) -> Result<String, String> {
+    let ja = pick(&lang) == Lang::Ja;
+    let tv = tv.inner().clone();
+    blocking(move || {
+        with_dev(&tv, |dev| {
+            hushtv_adb::launcher::install(dev, None)
+                .map(|r| r.home)
+                .map_err(|e| e.text(ja))
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+async fn home_remove(tv: State<'_, Shared>, lang: Option<String>) -> Result<String, String> {
+    let ja = pick(&lang) == Lang::Ja;
+    let tv = tv.inner().clone();
+    blocking(move || with_dev(&tv, |dev| hushtv_adb::launcher::remove(dev).map_err(|e| e.text(ja)))).await
+}
+
 /// 自動アップデートの公開鍵（kajisho5/runway の tauri-updater-key が作ったもの）。空のうちは更新を確かめない。
 const UPDATER_PUBKEY: &str = include_str!("../updater.pub");
 
@@ -692,6 +757,9 @@ fn main() {
             close_debugging,
             save_card,
             update_check,
+            home_status,
+            home_install,
+            home_remove,
             update_install
         ])
         .run(tauri::generate_context!())
