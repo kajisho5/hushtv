@@ -71,8 +71,6 @@ jobs:
         include:
           - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, bundles: "appimage,deb" }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, bundles: "nsis" }
-          - { os: macos-latest, target: aarch64-apple-darwin, bundles: "dmg" }
-          - { os: macos-latest, target: x86_64-apple-darwin, bundles: "dmg" }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -105,8 +103,27 @@ jobs:
         with:
           name: app-${{ matrix.target }}
           path: dist/*
+  # Mac のアプリは kajisho5/runway で作る：Apple Silicon と Intel 両方入りの .app → Developer ID 署名 → Apple の公証 → dmg
+  mac:
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    uses: kajisho5/runway/.github/workflows/mac-notarize.yml@main
+    with:
+      name: hushtv
+      build: >-
+        rustup toolchain install stable --profile minimal
+        && rustup default stable
+        && rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        && npm ci --prefix ui
+        && cd crates/hushtv-app
+        && ../../ui/node_modules/.bin/tauri build --target universal-apple-darwin --bundles app
+      products: target/universal-apple-darwin/release/bundle/macos/hushtv.app
+      app_link: true
+    secrets: inherit
   publish:
-    needs: [version, build, app]
+    needs: [version, build, app, mac]
+    # Mac の署名が失敗しても、ほかの OS のリリースは止めない
+    if: always() && needs.version.outputs.new == 'true' && needs.build.result == 'success' && needs.app.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -114,6 +131,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Mac の dmg の名前をそろえる
+        run: |
+          ver="${{ needs.version.outputs.tag }}"; ver="${ver#v}"
+          if [ -f "dist/hushtv-$ver.dmg" ]; then mv "dist/hushtv-$ver.dmg" "dist/hushtv_${ver}_macos-universal.dmg"; else echo "::warning::Mac の dmg がありません（署名・公証のジョブを確認）"; fi
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |

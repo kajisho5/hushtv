@@ -30,7 +30,7 @@ Nothing uninstalled · Every change can be undone · One Rust app, no adb</p>
   <a href="https://github.com/kajisho5/hushtv/releases"><img src="brand/og.png" width="720" alt="hushtv: quiet your Android TV. An apply run finds the closest tested list, keeps 6 apps on for safety, saves a restore point, switches apps off in checked batches and reports 20 apps switched off with 0 problems."></a>
 </p>
 
-> **Status: v0.2.0-beta.2.** The safety rules are ported from cleanyourtv and covered by tests, and the app has been run on Linux, but **hushtv has not been tried on a real TV yet**. Look at the plan before you apply, keep the restore point, and please [report how it went](https://github.com/kajisho5/hushtv/issues).
+> **Status: v0.2.0-beta.3.** The safety rules are ported from cleanyourtv and covered by tests, and the app has been run on Linux, but **hushtv has not been tried on a real TV yet**. Look at the plan before you apply, keep the restore point, and please [report how it went](https://github.com/kajisho5/hushtv/issues).
 
 <table>
   <tr>
@@ -67,7 +67,7 @@ hushtv puts both into one small Rust app:
 3. Pick your TV, accept **"Allow USB debugging?"** on the TV, look at the plan, and apply.
 4. On the last screen, **Close debugging**. hushtv turns it off and checks that the port is closed.
 
-The installers are not signed yet. On macOS, right-click the app → Open the first time. On Windows, SmartScreen → More info → Run anyway.
+The macOS app is signed and notarized by Apple (one dmg for Apple Silicon and Intel). The Windows installer is not signed yet: SmartScreen → More info → Run anyway.
 
 ## Safety
 
@@ -144,7 +144,7 @@ MIT
 
 <p><b>Android TV / Google TV に最初から入っている広告・追跡・おすすめ欄のアプリを、パソコンから Wi-Fi 経由で止めます。</b>アプリは削除しません。全部元に戻せます。</p>
 
-> **今の状態：v0.2.0-beta.2。** 安全装置は cleanyourtv から移してテストで確かめ、アプリは Linux で動かしています。ただし**実機のテレビではまだ試していません**。反映の前に中身を確かめ、戻す記録を残してください。
+> **今の状態：v0.2.0-beta.3。** 安全装置は cleanyourtv から移してテストで確かめ、アプリは Linux で動かしています。ただし**実機のテレビではまだ試していません**。反映の前に中身を確かめ、戻す記録を残してください。
 
 <table>
   <tr>
