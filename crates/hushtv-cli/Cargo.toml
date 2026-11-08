@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 hushtv-core.workspace = true
 hushtv-adb.workspace = true
+hushtv-card.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

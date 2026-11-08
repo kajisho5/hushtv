@@ -211,8 +211,13 @@ def screen_connect():
 def screen_clean():
     o = [header("不要なアプリを止める", "ACME 55U8（Android TV 12）に一番近いリスト「acme-55u8」を使います。",
                 "アプリは削除せず、止めるだけです。")]
-    o.append(t(1240, 98, "リストを変える →", 13, C["mint"], 600, "end"))
-    stats = [("24", "止める", C["mint"]), ("3", "元から止まっている", C["sub"]),
+    # 止め方（軽め／全部）
+    o.append(r(870, 44, 370, 40, C["panel"], rx=10, stroke=C["border"]))
+    o.append(r(874, 48, 210, 32, C["mintbg"], rx=8, stroke=C["mint"]))
+    o.append(t(979, 69, "軽め：広告と追跡だけ", 13, C["mint"], 700, "middle"))
+    o.append(t(1160, 69, "全部", 13, C["sub"], 600, "middle"))
+    o.append(t(1240, 112, "リストを変える →", 13, C["mint"], 600, "end"))
+    stats = [("20", "止める", C["mint"]), ("3", "元から止まっている", C["sub"]),
              ("6", "守る（止めると危険）", C["warn"]), ("5", "このテレビにない", C["dim"])]
     x = 300
     for n, lab, col in stats:
@@ -224,7 +229,7 @@ def screen_clean():
     o.append(f'<path d="M322 242l8-3 8 3v6c0 5-3.5 8-8 9.5-4.5-1.5-8-4.5-8-9.5z" fill="none" stroke="{C["mint"]}" stroke-width="1.8"/>')
     o.append(t(348, 257, "戻す地点はまだありません。［反映］を押すと、変える前のテレビの状態を自動で保存します。", 13, C["text"]))
     # タブ
-    tabs = [("すべて 38", True), ("止める 24", False), ("守る 6", False), ("元から止まっている 3", False), ("ない 5", False)]
+    tabs = [("すべて 38", True), ("止める 20", False), ("守る 6", False), ("元から止まっている 3", False), ("ない 5", False)]
     x = 300
     for lab, on in tabs:
         w = text_w(lab, 13) + 28
@@ -240,9 +245,9 @@ def screen_clean():
         o.append(t(x, 364, lab, 11, C["dim"], 600))
     o.append(f'<line x1="300" y1="376" x2="1240" y2="376" stroke="{C["border"]}"/>')
     rows = [("on", "com.example.adservice", "広告", C["danger"], C["dangerbg"], "動作中", "広告の配信", "41 機種で停止"),
-            ("on", "com.example.tv.recommend", "おすすめ欄", C["mint"], C["mintbg"], "動作中", "ホームのおすすめ行", "51 機種で停止"),
             ("on", "com.example.telemetry", "追跡", C["danger"], C["dangerbg"], "動作中", "利用状況の送信", "33 機種で停止"),
-            ("on", "com.example.storedemo", "店頭デモ", C["sub"], C["panel2"], "動作中", "店頭用の宣伝画面", "12 機種で停止"),
+            ("off", "com.example.tv.recommend", "おすすめ欄", C["mint"], C["mintbg"], "動作中", "ホームのおすすめ行", "「全部」で止める（チェックで追加）"),
+            ("off", "com.example.storedemo", "店頭デモ", C["sub"], C["panel2"], "動作中", "店頭用の宣伝画面", "「全部」で止める（チェックで追加）"),
             ("off", "com.example.voiceassist", "音声", C["sub"], C["panel2"], "動作中", "リストの作者が「残す」と判断", "残す"),
             ("lock", "com.example.tvinput", "守る", C["warn"], C["warnbg"], "動作中", "止めると入力切替が使えなくなる", "安全装置"),
             ("lock", "com.android.systemui", "守る", C["warn"], C["warnbg"], "動作中", "Android の中核。止めると起動しない", "安全装置")]
@@ -265,8 +270,11 @@ def screen_clean():
     # 下のバー
     o.append(f'<line x1="260" y1="716" x2="{W}" y2="716" stroke="{C["border"]}"/>')
     o.append(t(300, 754, "▲ 実行ログ", 13, C["sub"], 600))
-    o.append(button(470, 732, 300, "戻す地点を保存して反映（24 件）"))
-    o.append(button(784, 732, 120, "元に戻す", "disabled"))
+    o.append(button(430, 732, 300, "戻す地点を保存して反映（20 件）"))
+    o.append(button(744, 732, 110, "元に戻す", "disabled"))
+    o.append(r(874, 742, 40, 22, C["mint"], rx=11) + f'<circle cx="903" cy="753" r="8" fill="{C["ink"]}"/>')
+    o.append(t(922, 750, "安全モード", 12, C["text"], 700))
+    o.append(t(922, 766, "4 個ずつ止めて確かめる", 11, C["sub"]))
     o.append(t(1240, 759, "次へ：ホーム画面 →", 13, C["mint"], 600, "end"))
     page("2-clean", 1, {0}, "".join(o))
 
@@ -395,8 +403,70 @@ def screen_check():
     page("4-check", 3, {0, 1, 2}, "".join(o))
 
 
+def screen_finish():
+    o = [header("片付けが終わりました", "安全モードで 5 組に分けて止め、毎回ホームと設定が開くことを確かめました。問題は 0 件です。")]
+    # 共有画像の見本
+    o.append(r(300, 128, 600, 338, "#0B1020", rx=12, stroke=C["border"]))
+    o.append(t(324, 162, "hushtv", 20, C["text"], 700))
+    o.append(t(398, 162, "Quiet your Android TV", 12, C["sub"]))
+    o.append(r(324, 180, 270, 152, "#2A2F4A", rx=4))
+    o.append(r(606, 180, 270, 152, "#1B2B4A", rx=4))
+    for x in (336, 618):
+        for i in range(4):
+            o.append(r(x + i * 62, 290, 54, 30, "#33415E", rx=3))
+    for i in range(3):
+        o.append(r(336 + i * 82, 218, 74, 40, "#7A3A3A", rx=3))
+        o.append(t(373 + i * 82, 243, "AD", 11, "#FFD0D0", 700, "middle"))
+    o.append(r(332, 188, 64, 20, "#0B1020", rx=3) + t(364, 202, "BEFORE", 10, C["danger"], 700, "middle"))
+    o.append(r(614, 188, 56, 20, "#0B1020", rx=3) + t(642, 202, "AFTER", 10, C["mint"], 700, "middle"))
+    o.append(t(324, 382, "20 apps switched off", 30, C["mint"], 700))
+    o.append(t(324, 410, "Ads 9  ·  Tracking 11", 14, C["text"]))
+    o.append(t(324, 436, "Nothing uninstalled. Every change can be undone.", 12, C["sub"]))
+    o.append(t(876, 452, "github.com/kajisho5/hushtv", 11, C["sub"], 700, "end"))
+    o.append(t(600, 488, "共有用の画像（1600×900、文字は英語）", 11, C["dim"], anchor="middle"))
+    # 共有ボタン
+    o.append(button(300, 506, 190, "画像を保存", "primary", h=40, size=13))
+    o.append(button(502, 506, 190, "画像をコピー", "secondary", h=40, size=13))
+    o.append(button(704, 506, 196, "X に投稿", "secondary", h=40, size=13))
+    o.append(t(300, 572, "X に投稿を押すと、文と画像を用意してブラウザで開きます。投稿するかはあなたが決めます。", 12, C["sub"]))
+    # 結果
+    o.append(r(300, 596, 600, 104, C["panel"], rx=14, stroke=C["border"]))
+    for i, (n, lab, col) in enumerate([("20", "止めた", C["mint"]), ("6", "守った", C["warn"]), ("0", "問題", C["ok"])]):
+        x = 324 + i * 196
+        o.append(t(x, 646, n, 30, col, 700, mono=True))
+        o.append(t(x, 676, lab, 12, C["sub"]))
+    # 終わる前に
+    o.append(r(930, 128, 310, 572, C["panel"], rx=14, stroke=C["border"]))
+    o.append(t(954, 162, "終わる前に", 16, C["text"], 700))
+    items = [("ok", "戻す記録を保存済み", "いつでも 1 回で元に戻せます"),
+             ("ok", "点検用の控えを保存済み", "ファーム更新のあとに使います"),
+             ("todo", "ネットワークデバッグを閉じる", "閉じたかどうか、ポートで確かめます")]
+    y = 196
+    for st, a, b in items:
+        if st == "ok":
+            o.append(f'<circle cx="964" cy="{y+4}" r="9" fill="{C["ok"]}"/><path d="M959 {y+4}l3.5 3.5 6-6.5" stroke="{C["ink"]}" stroke-width="2" fill="none"/>')
+        else:
+            o.append(f'<circle cx="964" cy="{y+4}" r="9" fill="none" stroke="{C["dim"]}" stroke-width="1.6"/>')
+        o.append(t(982, y + 9, a, 13, C["text"], 600))
+        o.append(t(982, y + 28, b, 11, C["sub"]))
+        y += 58
+    o.append(button(954, 382, 262, "デバッグを閉じて確認", "primary", h=40, size=13))
+    o.append(t(954, 446, "テレビ側の操作", 12, C["dim"], 600))
+    o.append(t(954, 470, "設定 → デバイス設定 → 開発者向け", 12, C["sub"]))
+    o.append(t(954, 488, "オプション → USB デバッグをオフ", 12, C["sub"]))
+    o.append(f'<line x1="954" y1="520" x2="1216" y2="520" stroke="{C["border"]}"/>')
+    o.append(t(954, 552, "気に入らなかったら", 12, C["dim"], 600))
+    o.append(button(954, 568, 262, "すべて元に戻す", "danger", h=40, size=13))
+    o.append(t(954, 636, "複数のテレビにまとめて反映は", 11, C["dim"]))
+    o.append(t(954, 654, "次のバージョンで対応します", 11, C["dim"]))
+    o.append(f'<line x1="260" y1="716" x2="{W}" y2="716" stroke="{C["border"]}"/>')
+    o.append(t(300, 754, "▲ 実行ログ", 13, C["sub"], 600))
+    o.append(t(1240, 759, "ほかのテレビも片付ける →", 13, C["mint"], 600, "end"))
+    page("5-finish", 4, {0, 1, 2, 3}, "".join(o))
+
+
 def build_all():
-    screen_connect(); screen_clean(); screen_home(); screen_check()
+    screen_connect(); screen_clean(); screen_home(); screen_check(); screen_finish()
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 [workspace]
-members = ["crates/hushtv-core", "crates/hushtv-adb", "crates/hushtv-cli"]
+members = ["crates/hushtv-core", "crates/hushtv-adb", "crates/hushtv-card", "crates/hushtv-cli"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 edition = "2024"
 rust-version = "1.90"
 license = "MIT"
@@ -13,6 +13,7 @@ authors = ["Shogo Kajiyama <info@seventh-well.com>"]
 [workspace.dependencies]
 hushtv-core = { path = "crates/hushtv-core" }
 hushtv-adb = { path = "crates/hushtv-adb" }
+hushtv-card = { path = "crates/hushtv-card" }
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

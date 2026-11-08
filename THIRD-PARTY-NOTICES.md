@@ -38,6 +38,10 @@ see launcher/FONT-LICENSE-OFL.txt.
 
 https://github.com/cocool97/adb_client — MIT License, Copyright (c) Corentin LIAUD.
 
+## Inter (font)
+
+`crates/hushtv-card/fonts/` holds a Latin subset of Inter, Copyright 2016-2023 The Inter Project Authors, licensed under the SIL Open Font License 1.1 (full text in `crates/hushtv-card/fonts/OFL.txt`).
+
 ## Rust crates
 
 Other dependencies are listed in `Cargo.lock`; each keeps its own license (MIT, Apache-2.0 or both).

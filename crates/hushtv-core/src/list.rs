@@ -11,6 +11,9 @@ pub struct Entry {
     pub package: String,
     /// 行末の `# メモ`
     pub note: Option<String>,
+    /// この行の上にある見出し（例 "Telemetry and analytics"）
+    #[serde(default)]
+    pub section: Option<String>,
 }
 
 /// 読み込んだリスト。
@@ -57,6 +60,7 @@ pub fn parse(text: &str) -> Result<DebloatList, ListError> {
     let mut bad = Vec::new();
     let mut header = Vec::new();
     let mut in_header = true;
+    let mut section: Option<String> = None;
     for raw in text.lines() {
         let line = raw.strip_suffix('\r').unwrap_or(raw);
         let trimmed = line.trim_start();
@@ -69,15 +73,22 @@ pub fn parse(text: &str) -> Result<DebloatList, ListError> {
                 keep.push(Entry {
                     package: c[1].to_string(),
                     note: c.name("note").and_then(|m| note_of(m.as_str())),
+                    section: section.clone(),
                 });
-            } else if in_header {
-                header.push(
-                    trimmed
-                        .trim_start_matches('#')
-                        .strip_prefix(' ')
-                        .unwrap_or(trimmed.trim_start_matches('#'))
-                        .to_string(),
-                );
+            } else {
+                if in_header {
+                    header.push(
+                        trimmed
+                            .trim_start_matches('#')
+                            .strip_prefix(' ')
+                            .unwrap_or(trimmed.trim_start_matches('#'))
+                            .to_string(),
+                    );
+                }
+                let body = trimmed.trim_start_matches('#').trim();
+                if !body.is_empty() {
+                    section = Some(body.to_string());
+                }
             }
             continue;
         }
@@ -101,6 +112,7 @@ pub fn parse(text: &str) -> Result<DebloatList, ListError> {
             disable.push(Entry {
                 package: first.to_string(),
                 note,
+                section: section.clone(),
             });
         }
     }
@@ -158,6 +170,8 @@ mod tests {
         assert_eq!(list.disable[0].note.as_deref(), Some("広告の配信"));
         assert_eq!(list.keep[0].package, "com.example.voiceassist");
         assert_eq!(list.keep[0].note.as_deref(), Some("残す"));
+        assert_eq!(list.disable[0].section.as_deref(), Some("広告"));
+        assert_eq!(list.disable[0].section.as_deref(), Some("広告"));
         assert_eq!(list.header, "ACME 55U8（架空の機種）\n注意書き 2 行目");
     }
 

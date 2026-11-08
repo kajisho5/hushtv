@@ -4,7 +4,7 @@
 
 [日本語](#日本語) · [Design](docs/DESIGN.md)
 
-> **Status: v0.1.0-beta.1 (command line only).** The safety checks are ported from cleanyourtv and covered by tests, but this release **has not been tried on a real TV yet**. Read `plan` before you `apply`, and keep the restore record. A desktop app with a GUI comes next.
+> **Status: v0.1.0-beta.2 (command line only).** The safety checks are ported from cleanyourtv and covered by tests, but this release **has not been tried on a real TV yet**. Read `plan` before you `apply`, and keep the restore record. A desktop app with a GUI comes next.
 
 ## Why
 
@@ -15,6 +15,9 @@ hushtv is one Rust binary (about 7 MB) with every list inside:
 - **No Python, no Java, no `adb`.** It speaks ADB itself ([adb_client](https://github.com/cocool97/adb_client)).
 - **The same safety checks, in the same order**, as cleanyourtv's `disable.sh`: core Android packages, the setup wizard that owns your Wi-Fi, the app that owns Home, the HDMI input drivers, and the apps that open inputs and Settings.
 - **The same restore record** (`~/.cleanyourtv/recovery-*.json`, version 1), so cleanyourtv's `restore.sh` can read what hushtv saved.
+- **Light or Full.** Light (the default) switches off only ads and tracking. Full applies the whole tested list.
+- **Safe mode, on by default.** Apps are switched off 4 at a time; after each batch hushtv checks that the TV still answers, Home still opens and Settings still opens. If not, that batch is undone and the run stops.
+- **A before/after image to share.** hushtv photographs the home screen before and after and makes a 1600×900 card.
 - **`check --fix` after a firmware update**: finds apps that came back, new preloads and a reset Home.
 - macOS, Windows and Linux. English and Japanese.
 
@@ -27,7 +30,8 @@ hushtv is one Rust binary (about 7 MB) with every list inside:
 hushtv scan                      # find TVs on your network
 hushtv info 192.168.1.50         # model, Android version, the closest lists
 hushtv plan 192.168.1.50         # what would be disabled, and what is protected (changes nothing)
-hushtv apply 192.168.1.50        # save the restore record, then disable
+hushtv apply 192.168.1.50        # save the restore record, then disable (Light, safe mode)
+hushtv apply 192.168.1.50 --preset full   # the whole tested list
 hushtv check 192.168.1.50 --fix  # after a firmware update
 hushtv restore 192.168.1.50      # put everything back
 ```
@@ -52,11 +56,14 @@ MIT. The per-model lists and the safety rules come from [cleanyourtv](https://gi
 
 Android TV / Google TV に最初から入っている広告・追跡・おすすめ欄のアプリを、パソコンから Wi-Fi 経由で止めます。アプリは削除しません。全部元に戻せます。
 
-> **今の状態：v0.1.0-beta.1（コマンド操作のみ）。** 安全装置は cleanyourtv から移してテストで確かめていますが、**実機のテレビではまだ試していません**。`apply` の前に必ず `plan` で中身を見て、戻す記録を残してください。画面のあるパソコン用アプリは次のバージョンで出します。
+> **今の状態：v0.1.0-beta.2（コマンド操作のみ）。** 安全装置は cleanyourtv から移してテストで確かめていますが、**実機のテレビではまだ試していません**。`apply` の前に必ず `plan` で中身を見て、戻す記録を残してください。画面のあるパソコン用アプリは次のバージョンで出します。
 
 - Python・Java・Google の adb は要りません。約 7MB のファイル 1 つに、456 機種のリストが入っています
 - cleanyourtv と同じ安全装置を同じ順番で通します（Android の中核、Wi-Fi の持ち主の初期設定画面、今のホーム画面、HDMI の入力の土台、入力切替と設定を開くアプリ）
 - 戻す記録は cleanyourtv と同じ形式です。cleanyourtv の `restore.sh` でも戻せます
+- 「軽め」（既定）は広告と追跡だけ、「全部」はリストのすべてを止めます
+- 安全モード（既定でオン）：4 個ずつ止め、そのたびにテレビが答えるか・ホームと設定が開くかを確かめ、だめならその組だけ戻して止まります
+- 止める前と後のホーム画面を撮って、共有用の画像（1600×900）を作ります
 - ファーム更新のあとは `check --fix` で、戻ってきたアプリ・新しく増えたアプリ・元に戻ったホームを見つけて直します
 
 ### 使い方

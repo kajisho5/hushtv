@@ -198,6 +198,19 @@ impl Device {
             .collect()
     }
 
+    /// ホームボタンを押してから、画面を撮る（PNG）。著作権保護の画面などは黒くなることがある。
+    pub fn home_screenshot(&mut self, wait: Duration) -> Option<Vec<u8>> {
+        let _ = self.shell("input keyevent KEYCODE_HOME");
+        std::thread::sleep(wait);
+        let buf = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let writer = SharedBuf(buf.clone());
+        self.inner
+            .exec("screencap -p", &mut std::io::empty(), Box::new(writer))
+            .ok()?;
+        let bytes = buf.lock().ok()?.clone();
+        bytes.starts_with(b"\x89PNG").then_some(bytes)
+    }
+
     /// コマンドを順に送る（元に戻すとき）。
     pub fn run_all(&mut self, commands: &[String]) -> Vec<(String, String)> {
         commands
@@ -215,6 +228,20 @@ impl Device {
 impl Tv for Device {
     fn sh(&mut self, command: &str) -> Option<String> {
         self.shell(command)
+    }
+}
+
+struct SharedBuf(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+impl std::io::Write for SharedBuf {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .map_err(|_| std::io::Error::other("lock"))?
+            .extend_from_slice(data);
+        Ok(data.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 

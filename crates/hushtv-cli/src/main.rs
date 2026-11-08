@@ -11,6 +11,7 @@
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
 use hushtv_adb::{Device, default_key_path};
+use hushtv_core::category::{self, Category, Preset};
 use hushtv_core::list::{self, DebloatList};
 use hushtv_core::lists::{self, ListInfo};
 use hushtv_core::plan::{self, Applied, Plan};
@@ -86,8 +87,35 @@ struct Target {
     /// 自分で用意したリストのファイル
     #[arg(long, conflicts_with = "list")]
     file: Option<PathBuf>,
+    /// 止め方：light＝広告と追跡だけ（既定）／ full＝リストの全部
+    #[arg(long, value_enum, default_value_t = PresetArg::Light)]
+    preset: PresetArg,
+    /// 安全モードを使わず、一度に全部止める
+    #[arg(long)]
+    fast: bool,
+    /// 安全モードで一度に止める数
+    #[arg(long, default_value_t = 4)]
+    batch: usize,
+    /// 共有用のビフォー・アフター画像を作らない
+    #[arg(long)]
+    no_share: bool,
     #[command(flatten)]
     ov: OverrideArgs,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+enum PresetArg {
+    Light,
+    Full,
+}
+
+impl From<PresetArg> for Preset {
+    fn from(p: PresetArg) -> Self {
+        match p {
+            PresetArg::Light => Preset::Light,
+            PresetArg::Full => Preset::Full,
+        }
+    }
 }
 
 #[derive(Args, Clone, Copy, Default)]
@@ -264,8 +292,9 @@ fn make_plan(
     dev: &mut Device,
     list: &DebloatList,
     ov: Overrides,
+    preset: Preset,
 ) -> Result<(Plan, record::TvState)> {
-    let names = plan::names(list);
+    let names = category::select(list, preset);
     let state = dev.state()?;
     let guarded = safety::run(&names, dev, ov);
     Ok((Plan::build(&names, &guarded, &state), state))
@@ -367,7 +396,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Plan(t) => {
             let mut dev = connect(&t.host)?;
             let (_, _, list) = resolve_list(&t, &mut dev)?;
-            let (p, _) = make_plan(&mut dev, &list, t.ov.into())?;
+            let (p, _) = make_plan(&mut dev, &list, t.ov.into(), t.preset.into())?;
             print_plan(&p);
             println!(
                 "{}",
@@ -377,7 +406,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Apply { target: t, yes } => {
             let mut dev = connect(&t.host)?;
             let (id, path, list) = resolve_list(&t, &mut dev)?;
-            let (p, state) = make_plan(&mut dev, &list, t.ov.into())?;
+            let (p, state) = make_plan(&mut dev, &list, t.ov.into(), t.preset.into())?;
             print_plan(&p);
             if p.to_disable.is_empty() {
                 println!("{}", tr("止めるものはありません。", "Nothing to disable."));
@@ -416,20 +445,71 @@ fn run(cli: Cli) -> Result<()> {
                 tr("戻す記録:", "Restore record:"),
                 rec_path.display()
             );
-            // 2. 止める → 読み戻し
-            let total = p.to_disable.len();
-            let still = dev.disable(&p.to_disable, |i, n| eprintln!("[{}/{total}] {n}", i + 1));
-            // 3. 点検用の控え
+            // 2. 共有画像用に、変える前のホーム画面を撮る
+            let before = (!t.no_share)
+                .then(|| dev.home_screenshot(Duration::from_millis(2500)))
+                .flatten();
+            // 3. 止める（安全モードなら少しずつ確かめながら）→ 読み戻し
+            let mut stopped = None;
+            if t.fast {
+                let total = p.to_disable.len();
+                dev.disable(&p.to_disable, |i, n| eprintln!("[{}/{total}] {n}", i + 1));
+            } else {
+                let run = hushtv_core::health::run(&mut dev, &p.to_disable, t.batch, |i, n| {
+                    eprintln!(
+                        "{} {i}/{n}",
+                        tr(
+                            "安全モード：確かめながら止めています",
+                            "Safe mode: disabling and checking"
+                        )
+                    )
+                });
+                if let Some(why) = &run.stopped {
+                    println!(
+                        "{} {why:?}",
+                        tr(
+                            "テレビの様子がおかしくなったので、その組を元に戻して止めました:",
+                            "The TV stopped responding normally, so that batch was undone and the run stopped:"
+                        )
+                    );
+                    println!("  {} {:?}", tr("元に戻した:", "undone:"), run.rolled_back);
+                    println!(
+                        "  {} {}",
+                        tr("送らなかった:", "not sent:"),
+                        run.not_sent.len()
+                    );
+                }
+                stopped = run.stopped;
+            }
+            let enabled_now = dev
+                .packages()
+                .map(|(i, d)| {
+                    i.difference(&d)
+                        .cloned()
+                        .collect::<std::collections::BTreeSet<_>>()
+                })
+                .unwrap_or_default();
+            let done: Vec<String> = p
+                .to_disable
+                .iter()
+                .filter(|n| !enabled_now.contains(*n))
+                .cloned()
+                .collect();
+            let still: Vec<String> = if stopped.is_some() {
+                vec![]
+            } else {
+                p.to_disable
+                    .iter()
+                    .filter(|n| enabled_now.contains(*n))
+                    .cloned()
+                    .collect()
+            };
+            // 4. 点検用の控え
             let applied = Applied {
                 host: t.host.clone(),
                 list_id: id,
                 at: now_stamp(),
-                disabled: p
-                    .to_disable
-                    .iter()
-                    .filter(|n| !still.contains(n))
-                    .cloned()
-                    .collect(),
+                disabled: done.clone(),
                 installed: state.installed.iter().cloned().collect(),
                 home: state.home.clone(),
             };
@@ -438,11 +518,44 @@ fn run(cli: Cli) -> Result<()> {
                 applied_path(&t.host),
                 serde_json::to_string_pretty(&applied)?,
             )?;
-            println!(
-                "{} {}",
-                tr("止めました:", "Disabled:"),
-                applied.disabled.len()
-            );
+            println!("{} {}", tr("止めました:", "Disabled:"), done.len());
+            // 5. ビフォー・アフター画像
+            if !t.no_share && !done.is_empty() {
+                let after = dev.home_screenshot(Duration::from_millis(3000));
+                let mut counts: std::collections::BTreeMap<Category, usize> = Default::default();
+                for e in list.disable.iter().filter(|e| done.contains(&e.package)) {
+                    *counts.entry(category::classify(e)).or_default() += 1;
+                }
+                let stats = hushtv_card::Stats {
+                    switched_off: done.len(),
+                    by_category: counts
+                        .into_iter()
+                        .map(|(c, n)| (c.label(Lang::En).to_string(), n))
+                        .collect(),
+                };
+                match hushtv_card::render(before.as_deref(), after.as_deref(), &stats) {
+                    Ok(png) => {
+                        let out = data_dir().join("share").join(format!(
+                            "hushtv-{}-{}.png",
+                            host_tag(&t.host),
+                            now_stamp().replace(':', "").replace('+', "_")
+                        ));
+                        std::fs::create_dir_all(out.parent().unwrap())?;
+                        std::fs::write(&out, png)?;
+                        println!("{} {}", tr("共有用の画像:", "Share image:"), out.display());
+                    }
+                    Err(e) => eprintln!(
+                        "{} {e}",
+                        tr(
+                            "共有用の画像を作れませんでした:",
+                            "Could not make the share image:"
+                        )
+                    ),
+                }
+            }
+            if stopped.is_some() {
+                std::process::exit(1);
+            }
             if !still.is_empty() {
                 println!(
                     "{}",
@@ -580,4 +693,3 @@ fn run(cli: Cli) -> Result<()> {
     }
     Ok(())
 }
-

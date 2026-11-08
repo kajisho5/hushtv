@@ -1,0 +1,13 @@
+[package]
+name = "hushtv-card"
+description = "hushtv の共有用画像（ビフォー・アフター）を作る"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+ab_glyph = "0.2.32"
