@@ -82,6 +82,11 @@ STEPS = [("つなぐ", "テレビを見つけて接続"), ("片付ける", "不�
          ("ホーム画面", "広告のないホームに"), ("点検", "更新後のずれを直す"), ("終わる", "デバッグを閉じる")]
 
 
+STEPS_FULL = STEPS
+UPDATE = None  # 更新のお知らせ（例 "0.3.0"）。None なら出さない
+VERSION = "hushtv v0.1.0 · MIT"
+
+
 def sidebar(active, done):
     o = [r(0, 0, 260, H, C["side"], rx=0), f'<line x1="260" y1="0" x2="260" y2="{H}" stroke="{C["border"]}"/>']
     o.append(r(24, 26, 40, 40, C["mintbg"], rx=10) + tv_icon(30, 34, 1.0))
@@ -109,6 +114,14 @@ def sidebar(active, done):
         o.append(t(72, y + 26, title, 15, C["text"] if i == active or i in done else C["sub"], 700 if i == active else 500))
         o.append(t(72, y + 44, sub, 11, C["sub"] if i == active else C["dim"]))
         y += 68
+    # 更新のお知らせ
+    if UPDATE:
+        uy = H - 290
+        o.append(r(16, uy, 228, 64, C["mintbg"], rx=10, stroke=C["mint"]))
+        o.append(f'<circle cx="34" cy="{uy+22}" r="9" fill="{C["mint"]}"/>'
+                 f'<path d="M34 {uy+17}v9M30 {uy+22}l4 4 4-4" stroke="{C["ink"]}" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')
+        o.append(t(52, uy + 26, "新しいバージョン " + UPDATE, 13, C["text"], 700))
+        o.append(t(52, uy + 46, "更新する →", 12, C["mint"], 700))
     # テレビを直す
     rescue_on = active == -1
     o.append(r(16, H - 214, 228, 44, C["panel2"] if rescue_on else C["side"], rx=10, stroke=C["warn"] if rescue_on else C["border"]))
@@ -123,7 +136,7 @@ def sidebar(active, done):
     o.append(f'<line x1="24" y1="{H-110}" x2="236" y2="{H-110}" stroke="{C["border"]}"/>')
     o.append(t(24, H - 84, "アプリは削除しません。", 12, C["sub"]))
     o.append(t(24, H - 64, "いつでも元に戻せます。", 12, C["sub"]))
-    o.append(t(24, H - 32, "hushtv v0.1.0 · MIT", 11, C["dim"], mono=True))
+    o.append(t(24, H - 32, VERSION, 11, C["dim"], mono=True))
     return "".join(o)
 
 
@@ -522,8 +535,72 @@ def screen_rescue():
     page("6-rescue", -1, {0}, "".join(o))
 
 
+# ---------- 7・8. 自動アップデート（1.0）。ホーム画面の手順は 1.1 まで隠す ----------
+def with_update(fn):
+    g = globals()
+    g["STEPS"] = [s for s in STEPS_FULL if s[0] != "ホーム画面"]
+    g["UPDATE"], g["VERSION"] = "1.0.1", "hushtv v1.0.0 · MIT"
+    try:
+        fn()
+    finally:
+        g["STEPS"], g["UPDATE"], g["VERSION"] = STEPS_FULL, None, "hushtv v0.1.0 · MIT"
+
+
+def screen_update_card():
+    # 片付ける画面のまま、サイドバーにお知らせだけが出る（作業の邪魔をしない）
+    o = [header("テレビにつなぐ", "同じ Wi-Fi にあるテレビを探しています。見つからないときは IP アドレスを入れてください。")]
+    o.append(r(300, 136, 940, 420, C["panel"], rx=14, stroke=C["border"]))
+    o.append(t(324, 168, "見つかったテレビ", 16, C["text"], 700))
+    y = 190
+    for name, model, ip in [("リビングのテレビ", "ACME 55U8 · Android TV 12", "192.168.10.23"), ("寝室のテレビ", "Nimbus TV Box · Android TV 11", "192.168.10.41")]:
+        o.append(r(316, y, 908, 76, C["panel"], rx=12, stroke=C["border"]))
+        o.append(tv_icon(334, y + 24, 1.0, C["sub"]))
+        o.append(t(380, y + 31, name, 15, C["text"], 700))
+        o.append(t(380, y + 52, model, 12, C["sub"]))
+        o.append(t(380, y + 68, ip, 11, C["dim"], mono=True))
+        y += 88
+    # 注記（設計の説明用。実際の画面には出ない）
+    o.append(r(300, 590, 940, 170, "none", rx=14, stroke=C["dim"], sw=1))
+    o.append(t(324, 620, "この案で変わるところ（説明用の注記）", 14, C["warn"], 700))
+    notes = ["① 左下に「新しいバージョン」のお知らせ。起動のたびに 1 回だけ確かめ、ないときは何も出さない",
+             "② 押すと、変更点と［更新して再起動］の確認が出る（次の画面）。勝手には入れ替えない",
+             "③ 手順は 4 つ（ホーム画面の手順は 1.1 で戻す）。テレビの作業中は更新を押せない",
+             "④ 確かめに行く先は GitHub の公開ファイルだけ。パソコンやテレビの情報は送らない"]
+    for i, n in enumerate(notes):
+        o.append(t(324, 650 + i * 26, n, 13, C["sub"]))
+    page("7-update", 0, set(), "".join(o))
+
+
+def screen_update_dialog():
+    screen_update_card()
+    svg_path = OUT / f"7-update{'' if LANG == 'ja' else '-' + LANG}.svg"
+    base = svg_path.read_text(encoding="utf-8")
+    body = base[base.index(">", base.index("<svg")) + 1: base.rindex("</svg>")]
+    # 説明用の注記は消してから重ねる
+    body = body[: body.index(r(300, 590, 940, 170, "none", rx=14, stroke=C["dim"], sw=1))]
+    o = [f'<rect width="{W}" height="{H}" fill="#000" opacity="0.55"/>']
+    x, y, w, h = 400, 190, 480, 380
+    o.append(r(x, y, w, h, C["panel"], rx=16, stroke=C["border"]))
+    o.append(f'<circle cx="{x+40}" cy="{y+44}" r="16" fill="{C["mintbg"]}"/>'
+             f'<path d="M{x+40} {y+35}v15M{x+33} {y+44}l7 7 7-7" stroke="{C["mint"]}" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')
+    o.append(t(x + 68, y + 40, "hushtv 1.0.1 に更新", 20, C["text"], 700))
+    o.append(t(x + 68, y + 60, "いまは 1.0.0 · 約 5 MB", 12, C["sub"]))
+    o.append(t(x + 24, y + 100, "変わったところ", 13, C["sub"], 600))
+    for i, n in enumerate(["新しい機種のリストを 12 件追加", "点検で、戻ってきたアプリの見落としを修正", "英語の言い回しを直した"]):
+        o.append(f'<circle cx="{x+30}" cy="{y+124+i*26}" r="3" fill="{C["mint"]}"/>' + t(x + 42, y + 129 + i * 26, n, 13, C["text"]))
+    o.append(r(x + 24, y + 214, w - 48, 52, C["panel2"], rx=10))
+    o.append(t(x + 40, y + 236, "テレビの設定や戻す記録はそのまま残ります。", 12, C["sub"]))
+    o.append(t(x + 40, y + 255, "更新ファイルは開発者の鍵で署名を確かめてから入れます。", 12, C["sub"]))
+    o.append(button(x + 24, y + 296, 200, "あとで", "secondary"))
+    o.append(button(x + w - 24 - 216, y + 296, 216, "更新して再起動"))
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">'
+           + body + "".join(o) + "</svg>")
+    (OUT / f"8-update-dialog{'' if LANG == 'ja' else '-' + LANG}.svg").write_text(svg, encoding="utf-8")
+
+
 def build_all():
     screen_connect(); screen_clean(); screen_home(); screen_check(); screen_finish(); screen_rescue()
+    with_update(screen_update_card); with_update(screen_update_dialog)
 
 
 if __name__ == "__main__":
