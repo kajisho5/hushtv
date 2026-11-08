@@ -103,7 +103,12 @@ jobs:
         run: |
           extra=()
           if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then extra=(--config '{"bundle":{"createUpdaterArtifacts":true}}'); fi
-          ../../ui/node_modules/.bin/tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${extra[@]}"
+          # 部品のダウンロードが GitHub 側の一時的なエラー（504 など）で落ちることがあるので 3 回まで試す
+          for i in 1 2 3; do
+            ../../ui/node_modules/.bin/tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} "${extra[@]}" && exit 0
+            echo "::warning::作り直します（$i 回目が失敗）"; sleep $((i * 30))
+          done
+          exit 1
       - name: まとめる
         shell: bash
         run: |
