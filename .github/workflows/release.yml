@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.v.outputs.tag }}
+      version: ${{ steps.v.outputs.version }}
       new: ${{ steps.v.outputs.new }}
     steps:
       - uses: actions/checkout@v7
@@ -21,6 +22,7 @@ jobs:
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
           tag="v$version"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "new=false" >> "$GITHUB_OUTPUT"
             echo "$tag はリリース済みです"
@@ -110,6 +112,7 @@ jobs:
     uses: kajisho5/runway/.github/workflows/mac-notarize.yml@main
     with:
       name: hushtv
+      version: ${{ needs.version.outputs.version }}
       build: >-
         rustup toolchain install stable --profile minimal
         && rustup default stable
